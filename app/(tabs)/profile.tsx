@@ -178,7 +178,7 @@ export default function ProfileScreen() {
               <SettingsItem
                 icon={<Shield size={24} color={Colors.gradientGreenStart} />}
                 title="Privacy Policy"
-                onPress={() => console.log("Privacy")}
+                onPress={() => router.push("/privacy-policy")}
                 isLastItem={false}
               />
               <SettingsItem

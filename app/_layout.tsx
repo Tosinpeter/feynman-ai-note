@@ -39,6 +39,7 @@ function RootLayoutNav() {
       <Stack.Screen name="feynman-ai" options={{ headerShown: false }} />
       <Stack.Screen name="create-notes" options={{ headerShown: false }} />
       <Stack.Screen name="explanation" options={{ headerShown: false }} />
+      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
     </Stack>
   );
 }
