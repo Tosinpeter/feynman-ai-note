@@ -44,33 +44,47 @@ export default function RecordAudioScreen() {
 
   const startRecording = useCallback(async () => {
     try {
+      console.log('Requesting audio permissions...');
       const permission = await Audio.requestPermissionsAsync();
       
       if (permission.status !== 'granted') {
         console.error('Microphone permission denied');
-        router.back();
+        setTimeout(() => router.back(), 100);
         return;
       }
 
+      console.log('Setting audio mode...');
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       });
 
+      console.log('Creating recording...');
       const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        undefined,
+        100
       );
       
       recordingRef.current = newRecording;
       setIsRecording(true);
+      console.log('Recording started successfully');
     } catch (err) {
-      console.error("Failed to start recording", err);
-      router.back();
+      console.error("Failed to start recording:", err);
+      setTimeout(() => router.back(), 100);
     }
   }, [router]);
 
   useEffect(() => {
-    startRecording();
+    const initRecording = async () => {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await startRecording();
+    };
+    
+    initRecording();
+    
     return () => {
       cleanupRecording();
     };
