@@ -1,0 +1,313 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { ArrowLeft, FileAudio, ChevronDown, Sparkles } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import Colors from '@/constants/colors';
+
+export default function UploadAudioScreen() {
+  const router = useRouter();
+  const [selectedFile, setSelectedFile] = useState<{
+    name: string;
+    uri: string;
+    size: number;
+    mimeType?: string;
+  } | null>(null);
+  const [selectedLanguage] = useState('Auto detect');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleUploadPress = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'audio/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        setSelectedFile({
+          name: file.name,
+          uri: file.uri,
+          size: file.size || 0,
+          mimeType: file.mimeType,
+        });
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+  };
+
+  const handleGenerateTopic = async () => {
+    if (!selectedFile) return;
+
+    setIsGenerating(true);
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      router.push('/create-notes');
+    } catch (error) {
+      console.error('Error generating topic:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={() => router.back()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={24} color="#374151" strokeWidth={2} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Generate from audio</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        <View style={styles.content}>
+          <TouchableOpacity 
+            style={[
+              styles.uploadBox,
+              selectedFile && styles.uploadBoxWithFile
+            ]}
+            onPress={handleUploadPress}
+            activeOpacity={0.7}
+          >
+            {!selectedFile ? (
+              <>
+                <FileAudio 
+                  size={48} 
+                  color="#374151"
+                  strokeWidth={1.5}
+                />
+                <Text style={styles.uploadTitle}>Press to upload audio</Text>
+                <Text style={styles.uploadSubtitle}>
+                  (Supported formats: mp3, wav, m4a, ogg, flac)
+                </Text>
+              </>
+            ) : (
+              <>
+                <FileAudio 
+                  size={48} 
+                  color="#10B981"
+                  strokeWidth={2}
+                />
+                <Text style={styles.fileName} numberOfLines={1}>
+                  {selectedFile.name}
+                </Text>
+                <Text style={styles.fileSize}>
+                  {formatFileSize(selectedFile.size)}
+                </Text>
+                <TouchableOpacity 
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleRemoveFile();
+                  }}
+                  style={styles.removeButton}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.removeButtonText}>✕ Remove</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.languageSection}>
+            <View style={styles.languageLabelRow}>
+              <Text style={styles.robotEmoji}>🤖</Text>
+              <Text style={styles.languageLabel}>Topic generate language</Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.languageDropdown}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.robotEmoji}>🤖</Text>
+              <Text style={styles.languageValue}>{selectedLanguage}</Text>
+              <ChevronDown size={20} color="#374151" strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity 
+            style={[
+              styles.generateButton,
+              !selectedFile && styles.generateButtonDisabled
+            ]}
+            onPress={handleGenerateTopic}
+            disabled={!selectedFile || isGenerating}
+            activeOpacity={0.8}
+          >
+            {isGenerating ? (
+              <>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+                <Text style={styles.generateButtonText}>Generating...</Text>
+              </>
+            ) : (
+              <>
+                <Sparkles size={20} color="#FFFFFF" strokeWidth={2} />
+                <Text style={styles.generateButtonText}>Generate Topic</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
+  },
+  headerRight: {
+    width: 32,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  uploadBox: {
+    backgroundColor: '#FAF9F6',
+    borderWidth: 2,
+    borderStyle: 'dashed' as const,
+    borderColor: '#374151',
+    borderRadius: 16,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadBoxWithFile: {
+    borderStyle: 'solid' as const,
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  uploadTitle: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: '#1F2937',
+    marginTop: 16,
+  },
+  uploadSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  fileName: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginTop: 12,
+    maxWidth: '80%',
+  },
+  fileSize: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  removeButton: {
+    marginTop: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  removeButtonText: {
+    fontSize: 14,
+    color: '#EF4444',
+    fontWeight: '500' as const,
+  },
+  languageSection: {
+    marginTop: 24,
+  },
+  languageLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  languageLabel: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#1F2937',
+    marginLeft: 8,
+  },
+  languageDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  robotEmoji: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  languageValue: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 16,
+    gap: 8,
+  },
+  generateButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  generateButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.white,
+  },
+});

@@ -15,14 +15,23 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.nexus-ai-learn-fast"
+      "bundleIdentifier": "app.rork.nexus-ai-learn-fast",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.nexus_ai_learn_fast"
+      "package": "app.rork.nexus_ai_learn_fast",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -35,7 +44,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

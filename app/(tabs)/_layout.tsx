@@ -25,7 +25,7 @@ function FloatingActionButton() {
       icon: Volume2,
       iconColor: "#8B5CF6",
       bgColor: "#EDE9FE",
-      route: "/create-notes" 
+      route: "/upload-audio" 
     },
     { 
       id: "capture", 
