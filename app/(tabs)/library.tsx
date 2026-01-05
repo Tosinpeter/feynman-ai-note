@@ -133,7 +133,7 @@ export default function LibraryScreen() {
                   key={item.id}
                   style={styles.noteCard}
                   activeOpacity={0.7}
-                  onPress={() => router.push(`/explanation?id=${item.id}`)}
+                  onPress={() => router.push(`/explanation?explanationId=${item.id}`)}
                 >
                   <View style={styles.emojiThumbnail}>
                     <Text style={styles.emojiText}>{getEmojiForTopic(item.topic)}</Text>
