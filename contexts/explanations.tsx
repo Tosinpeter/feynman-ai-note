@@ -8,6 +8,11 @@ export interface Explanation {
   content: string;
   timestamp: number;
   isSaved: boolean;
+  imageUri?: string;
+  summary?: string;
+  keyPoints?: string[];
+  source?: string;
+  language?: string;
 }
 
 export const [ExplanationsContext, useExplanations] = createContextHook(() => {
@@ -39,13 +44,20 @@ export const [ExplanationsContext, useExplanations] = createContextHook(() => {
     }
   };
 
-  const addExplanation = (topic: string, content: string) => {
+  const addExplanation = (topic: string, content: string, options?: {
+    imageUri?: string;
+    summary?: string;
+    keyPoints?: string[];
+    source?: string;
+    language?: string;
+  }) => {
     const newExplanation: Explanation = {
       id: Date.now().toString(),
       topic,
       content,
       timestamp: Date.now(),
       isSaved: false,
+      ...options,
     };
     const updated = [newExplanation, ...explanations];
     setExplanations(updated);
@@ -75,6 +87,10 @@ export const [ExplanationsContext, useExplanations] = createContextHook(() => {
     return explanations.slice(0, 5);
   };
 
+  const getExplanationById = (id: string) => {
+    return explanations.find((exp) => exp.id === id);
+  };
+
   return {
     explanations,
     isLoading,
@@ -83,5 +99,6 @@ export const [ExplanationsContext, useExplanations] = createContextHook(() => {
     deleteExplanation,
     getSavedExplanations,
     getRecentExplanations,
+    getExplanationById,
   };
 });
