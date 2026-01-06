@@ -45,6 +45,7 @@ function RootLayoutNav() {
       <Stack.Screen name="upload-audio" options={{ headerShown: false }} />
       <Stack.Screen name="note-generating" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="generated-topic" options={{ headerShown: false }} />
+      <Stack.Screen name="capture-text-image" options={{ headerShown: false }} />
     </Stack>
   );
 }
