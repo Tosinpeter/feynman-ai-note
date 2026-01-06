@@ -18,7 +18,6 @@ import { Image } from "expo-image";
 export default function CaptureTextImageScreen() {
   const router = useRouter();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [extractedText, setExtractedText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedLanguage] = useState("Auto Detect");
 
@@ -70,44 +69,33 @@ export default function CaptureTextImageScreen() {
 
   const processImage = async () => {
     setIsProcessing(true);
-    setExtractedText("");
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    const simulatedText = `Extracted Text from Image:
-This is the text extracted from your captured image using OCR technology.
-
-The Feynman Technique involves:
-
-1. Choose a concept to learn
-2. Teach it to a child
-3. Identify gaps and go back to source
-4. Review and simplify
-
-Key points identified from the image will appear here for generating learning notes.`;
-
-    setExtractedText(simulatedText);
-    setIsProcessing(false);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    } catch (error) {
+      console.error("Image processing error:", error);
+      Alert.alert("Error", "Failed to process image. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleClearImage = () => {
     setSelectedImage(null);
-    setExtractedText("");
   };
 
   const handleGenerateNotes = () => {
-    if (!extractedText) {
-      Alert.alert("Error", "Please wait for text extraction to complete.");
+    if (!selectedImage) {
+      Alert.alert("No Image", "Please capture or select an image first.");
       return;
     }
 
     router.push({
       pathname: "/explanation",
       params: {
-        topic: "Captured Text Notes",
-        sourceText: extractedText,
-        sourceImage: selectedImage || "",
+        topic: "Image Analysis",
+        sourceImage: selectedImage,
         source: "capture",
+        language: selectedLanguage,
       },
     });
   };
@@ -173,23 +161,19 @@ Key points identified from the image will appear here for generating learning no
           {isProcessing && (
             <View style={styles.processingContainer}>
               <ActivityIndicator size="large" color="#8B5CF6" />
-              <Text style={styles.processingText}>Extracting text from image...</Text>
+              <Text style={styles.processingText}>Processing image...</Text>
             </View>
           )}
 
-          {extractedText && !isProcessing && (
-            <View style={styles.extractedTextContainer}>
-              <View style={styles.extractedTextHeader}>
-                <TextIcon size={20} color="#10B981" />
-                <Text style={styles.extractedTextTitle}>Extracted Text</Text>
+          {selectedImage && !isProcessing && (
+            <View style={styles.readyContainer}>
+              <View style={styles.readyHeader}>
+                <TextIcon size={24} color="#10B981" />
+                <Text style={styles.readyTitle}>Image Ready</Text>
               </View>
-              <ScrollView
-                style={styles.extractedTextScroll}
-                nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={true}
-              >
-                <Text style={styles.extractedTextContent}>{extractedText}</Text>
-              </ScrollView>
+              <Text style={styles.readyText}>
+                Your image has been captured. Tap &ldquo;Generate notes&rdquo; to analyze this image and create AI-powered learning notes using the Feynman Technique.
+              </Text>
             </View>
           )}
 
@@ -213,10 +197,10 @@ Key points identified from the image will appear here for generating learning no
             <TouchableOpacity
               style={[
                 styles.generateButton,
-                (!selectedImage || !extractedText || isProcessing) && styles.buttonDisabled,
+                (!selectedImage || isProcessing) && styles.buttonDisabled,
               ]}
               onPress={handleGenerateNotes}
-              disabled={!selectedImage || !extractedText || isProcessing}
+              disabled={!selectedImage || isProcessing}
             >
               <Text style={styles.generateButtonEmoji}>✨</Text>
               <Text style={styles.generateButtonText}>Generate notes</Text>
@@ -372,32 +356,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
   },
-  extractedTextContainer: {
+  readyContainer: {
     marginTop: 20,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#10B981",
     borderRadius: 16,
     padding: 16,
   },
-  extractedTextHeader: {
+  readyHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  extractedTextTitle: {
+  readyTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1F2937",
+    color: "#065F46",
   },
-  extractedTextScroll: {
-    maxHeight: 150,
-  },
-  extractedTextContent: {
+  readyText: {
     fontSize: 14,
-    color: "#374151",
-    lineHeight: 22,
+    color: "#047857",
+    lineHeight: 20,
   },
   languageSection: {
     marginTop: 20,

@@ -25,7 +25,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ExplanationScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ topic?: string; explanationId?: string }>();
+  const params = useLocalSearchParams<{ 
+    topic?: string; 
+    explanationId?: string;
+    sourceImage?: string;
+    source?: string;
+    language?: string;
+  }>();
   const { addExplanation, toggleSave, explanations } = useExplanations();
   const [currentExplanation, setCurrentExplanation] = useState<{
     id: string;
@@ -36,7 +42,27 @@ export default function ExplanationScreen() {
 
   const generateMutation = useMutation({
     mutationFn: async (topic: string) => {
-      const prompt = `Explain "${topic}" in the simplest way possible, as if explaining to a 5-year-old child. Use simple words, short sentences, and friendly examples. Keep it conversational and easy to understand. Maximum 200 words.`;
+      let prompt: string;
+      
+      if (params.source === "capture" && params.sourceImage) {
+        const languageInstruction = params.language && params.language !== "Auto Detect" 
+          ? `Please provide the explanation in ${params.language}.`
+          : "Please provide the explanation in the language that best fits the content.";
+        
+        prompt = `You are analyzing an image for educational purposes using the Feynman Technique. ${languageInstruction}
+
+Provide a simple, clear explanation of what you observe in the image as if teaching a curious learner. Break down any concepts, text, diagrams, or educational content you can identify.
+
+Keep your explanation:
+- Simple and conversational
+- Easy to understand
+- Around 150-200 words
+- Focused on key learning points
+
+Format your response naturally as if you're a friendly teacher explaining what's in the image.`;
+      } else {
+        prompt = `Explain "${topic}" in the simplest way possible, as if explaining to a 5-year-old child. Use simple words, short sentences, and friendly examples. Keep it conversational and easy to understand. Maximum 200 words.`;
+      }
       
       const content = await generateText({
         messages: [
