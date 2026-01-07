@@ -338,7 +338,7 @@ Keep your response short (2-3 sentences max). Be encouraging and sweet.`;
         
         if (audioData) {
           const text = await transcribeAudio(audioData);
-          if (text) {
+          if (text && text.trim().length > 0) {
             setTranscription(text);
             const newUnderstanding = Math.min(understanding + 25, 100);
             setUnderstanding(newUnderstanding);
@@ -346,7 +346,21 @@ Keep your response short (2-3 sentences max). Be encouraging and sweet.`;
             console.log("Understanding increased to:", newUnderstanding);
             
             await generateCharacterResponse(text, newUnderstanding);
+          } else {
+            console.log("Transcription was empty");
+            Alert.alert(
+              "Couldn't hear you",
+              "I didn't catch that. Please try speaking again, a bit louder and clearer.",
+              [{ text: "OK" }]
+            );
           }
+        } else {
+          console.log("No audio data received");
+          Alert.alert(
+            "Recording Error",
+            "Something went wrong with the recording. Please try again.",
+            [{ text: "OK" }]
+          );
         }
       } catch (err) {
         console.error("Error stopping recording:", err);
