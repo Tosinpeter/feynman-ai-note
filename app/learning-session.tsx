@@ -1,15 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Animated,
+  Alert,
 } from "react-native";
-import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { useLocalSearchParams, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { Mic } from "lucide-react-native";
+import { Mic, Square } from "lucide-react-native";
+import { Audio } from "expo-av";
 import Colors from "@/constants/colors";
 
 const TOM_CHARACTER = "https://r2-pub.rork.com/generated-images/7f688633-6fbb-4e61-845c-f3f3d20e6992.png";
@@ -48,21 +51,265 @@ function getTopicEmoji(topic: string): string {
 }
 
 export default function LearningSessionScreen() {
-  const _router = useRouter();
   const params = useLocalSearchParams();
   const topic = typeof params.topic === "string" ? params.topic : "Topic";
   const characterName = typeof params.characterName === "string" ? params.characterName : "Tom";
   const characterAge = typeof params.characterAge === "string" ? params.characterAge : "5";
   
-  const [understanding, _setUnderstanding] = useState(0);
+  const [understanding, setUnderstanding] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcription, setTranscription] = useState("");
+
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const webMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const webAudioChunksRef = useRef<Blob[]>([]);
 
   const characterImage = characterImages[characterName] || TOM_CHARACTER;
   const topicEmoji = getTopicEmoji(topic);
 
-  const handleMicPress = () => {
-    setIsRecording(!isRecording);
-    console.log("Mic pressed, recording:", !isRecording);
+  useEffect(() => {
+    if (isRecording) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isRecording, pulseAnim]);
+
+  const startRecordingNative = useCallback(async () => {
+    try {
+      console.log("Requesting audio permissions...");
+      const permission = await Audio.requestPermissionsAsync();
+      
+      if (permission.status !== "granted") {
+        Alert.alert("Permission Denied", "Microphone permission is required to record audio.");
+        return false;
+      }
+
+      console.log("Setting audio mode...");
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      console.log("Creating recording...");
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync({
+        android: {
+          extension: ".m4a",
+          outputFormat: Audio.RecordingOptionsPresets.HIGH_QUALITY.android.outputFormat,
+          audioEncoder: Audio.RecordingOptionsPresets.HIGH_QUALITY.android.audioEncoder,
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: ".wav",
+          outputFormat: Audio.RecordingOptionsPresets.HIGH_QUALITY.ios.outputFormat,
+          audioQuality: Audio.RecordingOptionsPresets.HIGH_QUALITY.ios.audioQuality,
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: "audio/webm",
+          bitsPerSecond: 128000,
+        },
+      });
+      
+      await recording.startAsync();
+      recordingRef.current = recording;
+      console.log("Recording started successfully");
+      return true;
+    } catch (err) {
+      console.error("Failed to start recording:", err);
+      Alert.alert("Error", "Failed to start recording. Please try again.");
+      return false;
+    }
+  }, []);
+
+  const startRecordingWeb = useCallback(async () => {
+    try {
+      console.log("Starting web recording...");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm",
+      });
+      
+      webAudioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          webAudioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.start(100);
+      webMediaRecorderRef.current = mediaRecorder;
+      console.log("Web recording started successfully");
+      return true;
+    } catch (err) {
+      console.error("Failed to start web recording:", err);
+      Alert.alert("Error", "Failed to access microphone. Please allow microphone access.");
+      return false;
+    }
+  }, []);
+
+  const stopRecordingNative = useCallback(async (): Promise<Blob | null> => {
+    try {
+      if (!recordingRef.current) return null;
+
+      console.log("Stopping native recording...");
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      });
+
+      if (!uri) return null;
+
+      console.log("Recording saved at:", uri);
+      
+      const uriParts = uri.split(".");
+      const fileType = uriParts[uriParts.length - 1];
+      
+      return {
+        uri,
+        name: `recording.${fileType}`,
+        type: `audio/${fileType}`,
+      } as unknown as Blob;
+    } catch (err) {
+      console.error("Failed to stop recording:", err);
+      return null;
+    }
+  }, []);
+
+  const stopRecordingWeb = useCallback(async (): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      if (!webMediaRecorderRef.current) {
+        resolve(null);
+        return;
+      }
+
+      console.log("Stopping web recording...");
+      const mediaRecorder = webMediaRecorderRef.current;
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(webAudioChunksRef.current, { type: "audio/webm" });
+        webAudioChunksRef.current = [];
+        
+        mediaRecorder.stream.getTracks().forEach((track) => track.stop());
+        webMediaRecorderRef.current = null;
+        
+        console.log("Web recording stopped, blob size:", audioBlob.size);
+        resolve(audioBlob);
+      };
+      
+      mediaRecorder.stop();
+    });
+  }, []);
+
+  const transcribeAudio = useCallback(async (audioData: Blob | { uri: string; name: string; type: string }) => {
+    try {
+      console.log("Transcribing audio...");
+      const formData = new FormData();
+      
+      if (Platform.OS === "web") {
+        const file = new File([audioData as Blob], "recording.webm", { type: "audio/webm" });
+        formData.append("audio", file);
+      } else {
+        formData.append("audio", audioData as unknown as Blob);
+      }
+
+      const response = await fetch("https://toolkit.rork.com/stt/transcribe/", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Transcription failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Transcription result:", result);
+      return result.text || "";
+    } catch (err) {
+      console.error("Transcription error:", err);
+      return "";
+    }
+  }, []);
+
+  const handleMicPress = async () => {
+    if (isProcessing) return;
+
+    if (isRecording) {
+      setIsProcessing(true);
+      console.log("Stopping recording...");
+      
+      try {
+        let audioData: Blob | null = null;
+        
+        if (Platform.OS === "web") {
+          audioData = await stopRecordingWeb();
+        } else {
+          audioData = await stopRecordingNative();
+        }
+        
+        setIsRecording(false);
+        
+        if (audioData) {
+          const text = await transcribeAudio(audioData);
+          if (text) {
+            setTranscription(text);
+            const newUnderstanding = Math.min(understanding + 20, 100);
+            setUnderstanding(newUnderstanding);
+            console.log("Transcription:", text);
+            console.log("Understanding increased to:", newUnderstanding);
+          }
+        }
+      } catch (err) {
+        console.error("Error stopping recording:", err);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else {
+      console.log("Starting recording...");
+      let success = false;
+      
+      if (Platform.OS === "web") {
+        success = await startRecordingWeb();
+      } else {
+        success = await startRecordingNative();
+      }
+      
+      if (success) {
+        setIsRecording(true);
+      }
+    }
   };
 
   return (
@@ -98,15 +345,36 @@ export default function LearningSessionScreen() {
             </Text>
 
             <View style={styles.bottomSection}>
-              <Text style={styles.pressToTalk}>Press to talk</Text>
+              <Text style={styles.pressToTalk}>
+                {isProcessing ? "Processing..." : isRecording ? "Tap to stop" : "Press to talk"}
+              </Text>
               
-              <TouchableOpacity
-                style={[styles.micButton, isRecording && styles.micButtonRecording]}
-                onPress={handleMicPress}
-                activeOpacity={0.8}
-              >
-                <Mic size={32} color={isRecording ? Colors.white : "#4B5563"} />
-              </TouchableOpacity>
+              {transcription ? (
+                <View style={styles.transcriptionBubble}>
+                  <Text style={styles.transcriptionText} numberOfLines={3}>
+                    {transcription}
+                  </Text>
+                </View>
+              ) : null}
+              
+              <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnim : 1 }] }}>
+                <TouchableOpacity
+                  style={[
+                    styles.micButton, 
+                    isRecording && styles.micButtonRecording,
+                    isProcessing && styles.micButtonProcessing,
+                  ]}
+                  onPress={handleMicPress}
+                  activeOpacity={0.8}
+                  disabled={isProcessing}
+                >
+                  {isRecording ? (
+                    <Square size={28} color={Colors.white} fill={Colors.white} />
+                  ) : (
+                    <Mic size={32} color={isProcessing ? Colors.white : "#4B5563"} />
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </View>
         </SafeAreaView>
@@ -225,5 +493,22 @@ const styles = StyleSheet.create({
   },
   micButtonRecording: {
     backgroundColor: "#EF4444",
+  },
+  micButtonProcessing: {
+    backgroundColor: "#8B5CF6",
+  },
+  transcriptionBubble: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    maxWidth: "90%",
+  },
+  transcriptionText: {
+    fontSize: 14,
+    color: Colors.darkText,
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
