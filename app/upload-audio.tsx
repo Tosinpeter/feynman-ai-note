@@ -71,6 +71,7 @@ export default function UploadAudioScreen() {
         audioUri: selectedFile.uri,
         fileName: selectedFile.name,
         language: selectedLanguage,
+        mimeType: selectedFile.mimeType || '',
       },
     });
   };

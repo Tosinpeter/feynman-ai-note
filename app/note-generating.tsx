@@ -46,6 +46,7 @@ export default function NoteGeneratingScreen() {
   const language = typeof params.language === 'string' ? params.language : 'Auto detect';
   const duration = typeof params.duration === 'string' ? params.duration : '00:00:00';
   const webTranscript = typeof params.webTranscript === 'string' ? params.webTranscript : '';
+  const mimeType = typeof params.mimeType === 'string' ? params.mimeType : '';
 
   const [steps, setSteps] = useState<Step[]>([
     {
@@ -145,7 +146,36 @@ export default function NoteGeneratingScreen() {
         const blob = await response.blob();
         console.log('Blob size:', blob.size, 'type:', blob.type);
         
-        const audioFile = new File([blob], 'recording.webm', { type: 'audio/webm' });
+        // Determine file extension and mime type from fileName or blob
+        let fileExtension = 'webm';
+        let fileMimeType = 'audio/webm';
+        
+        if (fileName && fileName.includes('.')) {
+          const parts = fileName.split('.');
+          fileExtension = parts[parts.length - 1].toLowerCase();
+          const mimeMap: Record<string, string> = {
+            'mp3': 'audio/mpeg',
+            'wav': 'audio/wav',
+            'm4a': 'audio/m4a',
+            'ogg': 'audio/ogg',
+            'flac': 'audio/flac',
+            'webm': 'audio/webm',
+            'mp4': 'audio/mp4',
+            'mpeg': 'audio/mpeg',
+            'mpga': 'audio/mpeg',
+          };
+          fileMimeType = mimeMap[fileExtension] || mimeType || blob.type || 'audio/webm';
+        } else if (mimeType) {
+          fileMimeType = mimeType;
+          fileExtension = mimeType.split('/')[1] || 'webm';
+        } else if (blob.type) {
+          fileMimeType = blob.type;
+          fileExtension = blob.type.split('/')[1] || 'webm';
+        }
+        
+        console.log('Using file extension:', fileExtension, 'mime type:', fileMimeType);
+        
+        const audioFile = new File([blob], `recording.${fileExtension}`, { type: fileMimeType });
         formData.append('audio', audioFile);
       } else {
         const uriParts = audioUri.split('.');
