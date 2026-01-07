@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthContext, useAuth } from "@/contexts/auth";
 import { ExplanationsContext } from "@/contexts/explanations";
+import { SubscriptionContext } from "@/contexts/subscription";
 import { trpc, trpcClient } from "@/lib/trpc";
 
 SplashScreen.preventAutoHideAsync();
@@ -46,6 +47,7 @@ function RootLayoutNav() {
       <Stack.Screen name="note-generating" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="generated-topic" options={{ headerShown: false }} />
       <Stack.Screen name="capture-text-image" options={{ headerShown: false }} />
+      <Stack.Screen name="paywall" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -60,9 +62,11 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <AuthContext>
-            <ExplanationsContext>
-              <RootLayoutNav />
-            </ExplanationsContext>
+            <SubscriptionContext>
+              <ExplanationsContext>
+                <RootLayoutNav />
+              </ExplanationsContext>
+            </SubscriptionContext>
           </AuthContext>
         </GestureHandlerRootView>
       </QueryClientProvider>

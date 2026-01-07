@@ -44,7 +44,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.card}
             activeOpacity={0.95}
-            onPress={() => console.log("Back to school promo")}
+            onPress={() => router.push("/paywall")}
           >
             <LinearGradient
               colors={[Colors.gradientCoralStart, Colors.gradientCoralEnd] as const}
@@ -56,7 +56,10 @@ export default function HomeScreen() {
                 <View style={styles.cardLeft}>
                   <Text style={styles.cardTitle}>Back to school</Text>
                   <Text style={styles.cardSubtitle}>Sale 50% off</Text>
-                  <TouchableOpacity style={styles.cardButton}>
+                  <TouchableOpacity 
+                    style={styles.cardButton}
+                    onPress={() => router.push("/paywall")}
+                  >
                     <Text style={styles.cardButtonText}>Get Now 50% off 🎁</Text>
                   </TouchableOpacity>
                 </View>
