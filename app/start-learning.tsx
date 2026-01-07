@@ -10,14 +10,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-  ActivityIndicator,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useExplanations } from "@/contexts/explanations";
-import { generateText } from "@rork-ai/toolkit-sdk";
-import { useMutation } from "@tanstack/react-query";
 import { Image } from "expo-image";
 
 const RACCOON_MASCOT = "https://r2-pub.rork.com/generated-images/97b402cd-3c09-435e-803e-c6c62955985a.png";
@@ -25,57 +20,6 @@ const RACCOON_MASCOT = "https://r2-pub.rork.com/generated-images/97b402cd-3c09-4
 export default function StartLearningScreen() {
   const router = useRouter();
   const [topic, setTopic] = useState("");
-  const [generatingStep, setGeneratingStep] = useState("");
-  const { addExplanation } = useExplanations();
-
-  const generateMutation = useMutation({
-    mutationFn: async (topicText: string) => {
-      setGeneratingStep("Analyzing topic...");
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setGeneratingStep("Generating explanation...");
-      const prompt = `Explain "${topicText}" in the simplest way possible, as if explaining to a 5-year-old child. Use simple words, short sentences, and friendly examples. Keep it conversational and easy to understand. Maximum 200 words.`;
-      
-      const content = await generateText({
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      });
-
-      setGeneratingStep("Creating study notes...");
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      return content;
-    },
-    onSuccess: (content, topicText) => {
-      setGeneratingStep("Saving to library...");
-      const newExplanation = addExplanation(topicText, content);
-      
-      setTimeout(() => {
-        setTopic("");
-        router.push({
-          pathname: "/explanation",
-          params: { explanationId: newExplanation.id },
-        });
-      }, 500);
-    },
-    onError: (error) => {
-      console.error("Generation error:", error);
-      Alert.alert(
-        "Error",
-        "Failed to generate explanation. Please try again.",
-        [
-          {
-            text: "OK",
-            onPress: () => setTopic(""),
-          },
-        ]
-      );
-    },
-  });
 
   const handleSubmitTopic = () => {
     const trimmedTopic = topic.trim();
@@ -84,7 +28,11 @@ export default function StartLearningScreen() {
       return;
     }
 
-    generateMutation.mutate(trimmedTopic);
+    router.push({
+      pathname: "/topic-picker",
+      params: { topic: trimmedTopic },
+    });
+    setTopic("");
   };
 
   const handleGoToLibrary = () => {
@@ -156,14 +104,14 @@ export default function StartLearningScreen() {
                 <TouchableOpacity
                   style={[
                     styles.submitButton,
-                    topic.trim() && !generateMutation.isPending && styles.submitButtonActive,
+                    topic.trim() && styles.submitButtonActive,
                   ]}
                   onPress={handleSubmitTopic}
-                  disabled={!topic.trim() || generateMutation.isPending}
+                  disabled={!topic.trim()}
                 >
                   <ArrowRight
                     size={20}
-                    color={topic.trim() && !generateMutation.isPending ? Colors.white : Colors.grayText}
+                    color={topic.trim() ? Colors.white : Colors.grayText}
                   />
                 </TouchableOpacity>
               </View>
@@ -171,29 +119,6 @@ export default function StartLearningScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
-
-      <Modal
-        visible={generateMutation.isPending}
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.loadingIcon}>
-              <ActivityIndicator size="large" color={Colors.gradientPurpleStart} />
-            </View>
-            <Text style={styles.modalTitle}>Generating Notes</Text>
-            <Text style={styles.modalSubtitle}>{generatingStep}</Text>
-            <View style={styles.progressDots}>
-              <View style={[styles.dot, generatingStep.includes("Analyzing") && styles.dotActive]} />
-              <View style={[styles.dot, generatingStep.includes("Generating") && styles.dotActive]} />
-              <View style={[styles.dot, generatingStep.includes("Creating") && styles.dotActive]} />
-              <View style={[styles.dot, generatingStep.includes("Saving") && styles.dotActive]} />
-            </View>
-            <Text style={styles.topicPreview}>&quot;{topic}&quot;</Text>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -325,68 +250,4 @@ const styles = StyleSheet.create({
   submitButtonActive: {
     backgroundColor: Colors.gradientPurpleStart,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 32,
-    alignItems: "center",
-    marginHorizontal: 32,
-    width: "85%",
-    maxWidth: 320,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: "0 8px 16px rgba(0,0,0,0.2)",
-      },
-    }),
-  },
-  loadingIcon: {
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700" as const,
-    color: Colors.darkText,
-    marginBottom: 8,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: Colors.grayText,
-    marginBottom: 16,
-  },
-  progressDots: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.lightGray,
-  },
-  dotActive: {
-    backgroundColor: Colors.gradientPurpleStart,
-  },
-  topicPreview: {
-    fontSize: 16,
-    fontWeight: "600" as const,
-    color: Colors.gradientPurpleStart,
-    fontStyle: "italic" as const,
-    textAlign: "center" as const,
-  },
-});
+  });

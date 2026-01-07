@@ -39,6 +39,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="feynman-ai" options={{ headerShown: false }} />
       <Stack.Screen name="start-learning" options={{ headerShown: false }} />
+      <Stack.Screen name="topic-picker" options={{ headerShown: false }} />
       <Stack.Screen name="explanation" options={{ headerShown: false }} />
       <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
       <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
