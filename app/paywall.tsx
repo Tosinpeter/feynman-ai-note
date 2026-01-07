@@ -1,17 +1,7 @@
-
 import { useSubscription } from "@/contexts/subscription";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import {
-  X,
-  Check,
-  Sparkles,
-  Brain,
-  Zap,
-  Crown,
-  Star,
-} from "lucide-react-native";
+import { X, Check, Gift, RefreshCw } from "lucide-react-native";
 import React, { useState, useMemo } from "react";
 import {
   View,
@@ -19,7 +9,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Platform,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -55,28 +44,44 @@ export default function PaywallScreen() {
     return pkgMap;
   }, [currentOffering]);
 
-  const getPriceString = (planType: PlanType) => {
-    const pkg = packages[planType];
-    if (!pkg) return "—";
-    return pkg.product.priceString;
-  };
-
-  const getWeeklyPrice = (planType: PlanType) => {
+  const getOriginalPrice = (planType: PlanType) => {
     const pkg = packages[planType];
     if (!pkg) return "—";
     const price = pkg.product.price;
-    let weeklyPrice = price;
-    if (planType === "monthly") {
-      weeklyPrice = price / 4;
-    } else if (planType === "annual") {
-      weeklyPrice = price / 52;
-    }
+    let multiplier = 1;
+    if (planType === "weekly") multiplier = 1 / 0.7;
+    else if (planType === "monthly") multiplier = 2;
+    else if (planType === "annual") multiplier = 2;
+    
+    const originalPrice = price * multiplier;
     const currencyCode = pkg.product.currencyCode || "USD";
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currencyCode,
-      minimumFractionDigits: 2,
-    }).format(weeklyPrice);
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(originalPrice);
+  };
+
+  const getDiscountedPrice = (planType: PlanType) => {
+    const pkg = packages[planType];
+    if (!pkg) return "—";
+    const currencyCode = pkg.product.currencyCode || "USD";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(pkg.product.price);
+  };
+
+  const getPeriodLabel = (planType: PlanType) => {
+    switch (planType) {
+      case "weekly": return "/week";
+      case "monthly": return "/month";
+      case "annual": return "/year";
+      default: return "";
+    }
   };
 
   const handlePurchase = async () => {
@@ -97,119 +102,87 @@ export default function PaywallScreen() {
     await restore();
   };
 
-  const features = [
-    { icon: Brain, text: "Unlimited AI explanations", color: "#8B5CF6" },
-    { icon: Sparkles, text: "Advanced Feynman Technique", color: "#F59E0B" },
-    { icon: Zap, text: "Instant topic generation", color: "#10B981" },
-    { icon: Star, text: "Premium flashcards & quizzes", color: "#EF4444" },
-    { icon: Crown, text: "Priority support", color: "#3B82F6" },
-  ];
-
   const plans = [
-    {
-      id: "annual" as PlanType,
-      name: "Yearly",
-      badge: "BEST VALUE",
-      badgeColor: "#10B981",
-      savings: "Save 75%",
-    },
-    {
-      id: "monthly" as PlanType,
-      name: "Monthly",
-      badge: null,
-      badgeColor: null,
-      savings: "Save 40%",
-    },
     {
       id: "weekly" as PlanType,
       name: "Weekly",
       badge: null,
       badgeColor: null,
-      savings: null,
+      discount: "30% off first week",
+    },
+    {
+      id: "annual" as PlanType,
+      name: "Yearly",
+      badge: "BEST OFFER",
+      badgeColor: "#F97171",
+      discount: "50% off first year",
+    },
+    {
+      id: "monthly" as PlanType,
+      name: "Monthly",
+      badge: "POPULAR",
+      badgeColor: "#14B8A6",
+      discount: "50% off first month",
     },
   ];
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={["#1a1a2e", "#16213e", "#0f0f23"]}
-        style={StyleSheet.absoluteFill}
-      />
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <X size={24} color="#FFFFFF" strokeWidth={2} />
-        </TouchableOpacity>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <X size={24} color="#1F2937" strokeWidth={2} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestore}
+            disabled={isRestoring || isPurchasing}
+            activeOpacity={0.7}
+          >
+            {isRestoring ? (
+              <ActivityIndicator size="small" color="#1F2937" />
+            ) : (
+              <>
+                <RefreshCw size={16} color="#1F2937" />
+                <Text style={styles.restoreText}>Restore</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          <View style={styles.headerSection}>
-            <View style={styles.mascotContainer}>
-              <LinearGradient
-                colors={["#8B5CF6", "#A855F7", "#C084FC"]}
-                style={styles.mascotGlow}
-              />
-              <Image
-                source="https://r2-pub.rork.com/generated-images/21a2188b-28ec-4fab-9231-8adc2cd797f9.png"
-                style={styles.mascotImage}
-                contentFit="contain"
-              />
-              <View style={styles.crownBadge}>
-                <Crown size={20} color="#FFD700" fill="#FFD700" />
-              </View>
+          <View style={styles.illustrationContainer}>
+            <Image
+              source="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=300&fit=crop"
+              style={styles.illustrationImage}
+              contentFit="contain"
+            />
+            <View style={styles.mascotOverlay}>
+              <Text style={styles.mascotEmoji}>🎒</Text>
             </View>
-            <Text style={styles.title}>Unlock Premium</Text>
-            <Text style={styles.subtitle}>
-              Master any topic with the Feynman Technique
-            </Text>
-          </View>
-
-          <View style={styles.promoContainer}>
-            <LinearGradient
-              colors={["#F97316", "#EF4444"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.promoBadge}
-            >
-              <Text style={styles.promoText}>🎉 BACK TO SCHOOL - 50% OFF</Text>
-            </LinearGradient>
-          </View>
-
-          <View style={styles.featuresContainer}>
-            {features.map((feature, index) => {
-              const IconComponent = feature.icon;
-              return (
-                <View key={index} style={styles.featureRow}>
-                  <View
-                    style={[
-                      styles.featureIconContainer,
-                      { backgroundColor: `${feature.color}20` },
-                    ]}
-                  >
-                    <IconComponent size={18} color={feature.color} />
-                  </View>
-                  <Text style={styles.featureText}>{feature.text}</Text>
-                  <Check size={18} color="#10B981" strokeWidth={3} />
-                </View>
-              );
-            })}
+            <Text style={styles.backToText}>BACK TO</Text>
+            <Text style={styles.schoolText}>SCHOOL</Text>
           </View>
 
           {isLoadingOfferings ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#8B5CF6" />
+              <ActivityIndicator size="large" color="#F97171" />
               <Text style={styles.loadingText}>Loading plans...</Text>
             </View>
           ) : (
             <View style={styles.plansContainer}>
               {plans.map((plan) => {
                 const isSelected = selectedPlan === plan.id;
+                const isHighlighted = plan.id === "annual" || plan.id === "monthly";
                 return (
                   <TouchableOpacity
                     key={plan.id}
@@ -220,16 +193,6 @@ export default function PaywallScreen() {
                     onPress={() => setSelectedPlan(plan.id)}
                     activeOpacity={0.8}
                   >
-                    {plan.badge && (
-                      <View
-                        style={[
-                          styles.planBadge,
-                          { backgroundColor: plan.badgeColor },
-                        ]}
-                      >
-                        <Text style={styles.planBadgeText}>{plan.badge}</Text>
-                      </View>
-                    )}
                     <View style={styles.planContent}>
                       <View style={styles.planLeft}>
                         <View
@@ -238,33 +201,41 @@ export default function PaywallScreen() {
                             isSelected && styles.radioOuterSelected,
                           ]}
                         >
-                          {isSelected && <View style={styles.radioInner} />}
-                        </View>
-                        <View>
-                          <Text
-                            style={[
-                              styles.planName,
-                              isSelected && styles.planNameSelected,
-                            ]}
-                          >
-                            {plan.name}
-                          </Text>
-                          {plan.savings && (
-                            <Text style={styles.planSavings}>{plan.savings}</Text>
+                          {isSelected && (
+                            <View style={styles.checkContainer}>
+                              <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                            </View>
                           )}
+                        </View>
+                        <View style={styles.planInfo}>
+                          <View style={styles.planNameRow}>
+                            <Text style={styles.planName}>{plan.name}</Text>
+                            {plan.badge && (
+                              <View
+                                style={[
+                                  styles.planBadge,
+                                  { backgroundColor: plan.badgeColor },
+                                ]}
+                              >
+                                <Text style={styles.planBadgeText}>{plan.badge}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.discountRow}>
+                            <Gift size={14} color="#F97171" />
+                            <Text style={styles.discountText}>{plan.discount}</Text>
+                          </View>
                         </View>
                       </View>
                       <View style={styles.planRight}>
-                        <Text
-                          style={[
-                            styles.planPrice,
-                            isSelected && styles.planPriceSelected,
-                          ]}
-                        >
-                          {getPriceString(plan.id)}
+                        <Text style={styles.originalPrice}>
+                          {getOriginalPrice(plan.id)}
                         </Text>
-                        <Text style={styles.planPeriod}>
-                          {getWeeklyPrice(plan.id)}/week
+                        <Text style={[
+                          styles.discountedPrice,
+                          isHighlighted && styles.discountedPriceHighlighted
+                        ]}>
+                          {getDiscountedPrice(plan.id)}{getPeriodLabel(plan.id)}
                         </Text>
                       </View>
                     </View>
@@ -283,51 +254,27 @@ export default function PaywallScreen() {
             disabled={isPurchasing || isRestoring || isLoadingOfferings}
             activeOpacity={0.9}
           >
-            <LinearGradient
-              colors={["#8B5CF6", "#7C3AED"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.continueGradient}
-            >
-              {isPurchasing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.continueText}>Continue</Text>
-                  <Sparkles size={20} color="#FFFFFF" />
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.restoreButton}
-            onPress={handleRestore}
-            disabled={isRestoring || isPurchasing}
-            activeOpacity={0.7}
-          >
-            {isRestoring ? (
-              <ActivityIndicator size="small" color="#9CA3AF" />
+            {isPurchasing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.restoreText}>Restore Purchases</Text>
+              <>
+                <Text style={styles.continueText}>Get Unlimited Now</Text>
+                <Gift size={20} color="#FFFFFF" />
+              </>
             )}
           </TouchableOpacity>
 
-          <View style={styles.legalContainer}>
-            <Text style={styles.legalText}>
-              Payment will be charged to your account at confirmation of purchase.
-              Subscription automatically renews unless auto-renew is turned off at
-              least 24-hours before the end of the current period.
-            </Text>
-            <View style={styles.legalLinks}>
-              <TouchableOpacity onPress={() => router.push("/terms-of-service")}>
-                <Text style={styles.legalLink}>Terms of Service</Text>
-              </TouchableOpacity>
-              <Text style={styles.legalDivider}>•</Text>
+          <View style={styles.footerContainer}>
+            <View style={styles.footerLeft}>
               <TouchableOpacity onPress={() => router.push("/privacy-policy")}>
-                <Text style={styles.legalLink}>Privacy Policy</Text>
+                <Text style={styles.footerLink}>Privacy</Text>
+              </TouchableOpacity>
+              <Text style={styles.footerDivider}>|</Text>
+              <TouchableOpacity onPress={() => router.push("/terms-of-service")}>
+                <Text style={styles.footerLink}>Terms</Text>
               </TouchableOpacity>
             </View>
+            <Text style={styles.cancelText}>Cancel Anytime</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -338,153 +285,98 @@ export default function PaywallScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f0f23",
+    backgroundColor: "#F97171",
   },
   safeArea: {
     flex: 1,
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
   closeButton: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 60 : 16,
-    right: 16,
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.1)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 10,
+  },
+  restoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  restoreText: {
+    color: "#1F2937",
+    fontSize: 14,
+    fontWeight: "500",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
-  headerSection: {
+  illustrationContainer: {
     alignItems: "center",
-    marginBottom: 24,
-  },
-  mascotContainer: {
-    position: "relative",
     marginBottom: 20,
+    position: "relative",
   },
-  mascotGlow: {
+  illustrationImage: {
+    width: 280,
+    height: 200,
+    opacity: 0,
+  },
+  mascotOverlay: {
     position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    top: -10,
-    left: -10,
-    opacity: 0.3,
+    top: 20,
+    alignItems: "center",
   },
-  mascotImage: {
-    width: 120,
-    height: 120,
+  mascotEmoji: {
+    fontSize: 120,
   },
-  crownBadge: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    backgroundColor: "#1a1a2e",
-    borderRadius: 20,
-    padding: 6,
-    borderWidth: 2,
-    borderColor: "#FFD700",
+  backToText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FEE2E2",
+    letterSpacing: 4,
+    marginTop: -20,
   },
-  title: {
-    fontSize: 32,
+  schoolText: {
+    fontSize: 42,
     fontWeight: "800",
-    color: "#FFFFFF",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#9CA3AF",
-    textAlign: "center",
-  },
-  promoContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  promoBadge: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  promoText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  featuresContainer: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.05)",
-  },
-  featureIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  featureText: {
-    flex: 1,
-    fontSize: 15,
-    color: "#FFFFFF",
-    fontWeight: "500",
+    color: "#FEE2E2",
+    letterSpacing: 8,
+    marginTop: -4,
   },
   loadingContainer: {
     alignItems: "center",
     paddingVertical: 40,
   },
   loadingText: {
-    color: "#9CA3AF",
+    color: "#FFFFFF",
     marginTop: 12,
     fontSize: 14,
   },
   plansContainer: {
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   planCard: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 16,
     borderWidth: 2,
     borderColor: "transparent",
-    position: "relative",
-    overflow: "hidden",
   },
   planCardSelected: {
-    borderColor: "#8B5CF6",
-    backgroundColor: "rgba(139, 92, 246, 0.1)",
-  },
-  planBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderBottomLeftRadius: 12,
-  },
-  planBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "700",
+    borderColor: "#F97171",
+    backgroundColor: "#FFF5F5",
   },
   planContent: {
     flexDirection: "row",
@@ -495,107 +387,117 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flex: 1,
   },
   radioOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 2,
-    borderColor: "#6B7280",
+    borderColor: "#D1D5DB",
     justifyContent: "center",
     alignItems: "center",
   },
   radioOuterSelected: {
-    borderColor: "#8B5CF6",
+    borderColor: "#F97171",
+    backgroundColor: "#F97171",
   },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#8B5CF6",
+  checkContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  planInfo: {
+    flex: 1,
+  },
+  planNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
   },
   planName: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
   },
-  planNameSelected: {
-    color: "#FFFFFF",
+  planBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  planSavings: {
-    fontSize: 12,
-    color: "#10B981",
+  planBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  discountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  discountText: {
+    fontSize: 13,
+    color: "#F97171",
     fontWeight: "500",
-    marginTop: 2,
   },
   planRight: {
     alignItems: "flex-end",
   },
-  planPrice: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  planPriceSelected: {
-    color: "#FFFFFF",
-  },
-  planPeriod: {
-    fontSize: 12,
+  originalPrice: {
+    fontSize: 13,
     color: "#9CA3AF",
-    marginTop: 2,
+    textDecorationLine: "line-through",
+    marginBottom: 2,
+  },
+  discountedPrice: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  discountedPriceHighlighted: {
+    color: "#F97171",
   },
   continueButton: {
+    backgroundColor: "#374151",
     borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 16,
-  },
-  continueButtonDisabled: {
-    opacity: 0.7,
-  },
-  continueGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 18,
-    gap: 8,
+    gap: 10,
+    marginBottom: 16,
+  },
+  continueButtonDisabled: {
+    opacity: 0.7,
   },
   continueText: {
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "700",
   },
-  restoreButton: {
+  footerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
-    marginBottom: 20,
+    paddingHorizontal: 4,
   },
-  restoreText: {
-    color: "#9CA3AF",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  legalContainer: {
-    alignItems: "center",
-  },
-  legalText: {
-    color: "#6B7280",
-    fontSize: 11,
-    textAlign: "center",
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-  legalLinks: {
+  footerLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  legalLink: {
-    color: "#8B5CF6",
-    fontSize: 12,
+  footerLink: {
+    color: "#1F2937",
+    fontSize: 14,
     fontWeight: "500",
   },
-  legalDivider: {
-    color: "#6B7280",
-    fontSize: 12,
+  footerDivider: {
+    color: "#1F2937",
+    fontSize: 14,
+  },
+  cancelText: {
+    color: "#1F2937",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
