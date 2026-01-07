@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
 
-const STT_API_URL = 'https://toolkit.rork.com/stt/transcribe/';
+const STT_API_URL = `${process.env.EXPO_PUBLIC_TOOLKIT_URL}/stt/transcribe/`;
 
 // Declare Web Speech Recognition API types
 declare global {
@@ -409,24 +409,31 @@ const formatTime = (seconds: number) => {
             const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
             formData.append('audio', audioFile);
             
+            console.log('Calling STT API at:', STT_API_URL);
             const sttResponse = await fetch(STT_API_URL, {
               method: 'POST',
               body: formData,
             });
+            
+            console.log('STT Response status:', sttResponse.status);
             
             if (sttResponse.ok) {
               const result = await sttResponse.json();
               console.log('=== STT API Result (web) ===');
               console.log('Transcribed text:', result.text);
               
-              if (result.text && result.text.trim().length > webTranscript.length) {
+              if (result.text && result.text.trim().length > 0) {
                 webTranscript = result.text.trim();
                 console.log('Using STT API transcription:', webTranscript);
               }
+            } else {
+              const errorText = await sttResponse.text();
+              console.log('STT API error response:', errorText);
             }
           }
         } catch (sttError) {
-          console.log('STT API error on web (using Speech Recognition fallback):', sttError);
+          console.log('=== Transcription Error ===', sttError);
+          // Continue with Speech Recognition fallback if available
         }
       }
 
