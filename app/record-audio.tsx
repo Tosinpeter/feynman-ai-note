@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
 
-const STT_API_URL = `${process.env.EXPO_PUBLIC_TOOLKIT_URL}/stt/transcribe/`;
+const STT_API_URL = 'https://toolkit.rork.com/stt/transcribe/';
 
 // Declare Web Speech Recognition API types
 declare global {
