@@ -14,10 +14,10 @@ import Colors from "@/constants/colors";
 
 const RACCOON_MASCOT = "https://r2-pub.rork.com/generated-images/97b402cd-3c09-435e-803e-c6c62955985a.png";
 
-const TOM_CHARACTER = "https://r2-pub.rork.com/generated-images/6a5a1e49-bb93-4db1-acfa-f48ab77e7dd8.png";
-const LUCY_CHARACTER = "https://r2-pub.rork.com/generated-images/3b19ca64-eee5-4cbd-ad61-1b0f26cef8b2.png";
-const KENNY_CHARACTER = "https://r2-pub.rork.com/generated-images/13071b8f-a9fe-4eb4-bd49-bb1e9dcca067.png";
-const MIA_CHARACTER = "https://r2-pub.rork.com/generated-images/0a22a7e9-48b4-44d4-a92c-90f76d6f5c28.png";
+const TOM_CHARACTER = "https://r2-pub.rork.com/generated-images/7f688633-6fbb-4e61-845c-f3f3d20e6992.png";
+const LUCY_CHARACTER = "https://r2-pub.rork.com/generated-images/e59672f4-b433-470a-b7e7-d676694ee6a5.png";
+const KENNY_CHARACTER = "https://r2-pub.rork.com/generated-images/192d5deb-7fca-4339-9c8b-f577bab09891.png";
+const MIA_CHARACTER = "https://r2-pub.rork.com/generated-images/40431168-41b7-42a1-847a-6d5e6669c039.png";
 
 interface Character {
   name: string;
