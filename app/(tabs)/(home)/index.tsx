@@ -75,7 +75,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.card}
             activeOpacity={0.95}
-            onPress={() => router.push("/feynman-ai")}
+            onPress={() => router.push("/start-learning")}
           >
             <LinearGradient
               colors={[
@@ -99,7 +99,10 @@ export default function HomeScreen() {
                     <Text style={styles.bold}>Use Feynman Technique</Text>
                     {"\n"}to learn and memorize anything.
                   </Text>
-                  <TouchableOpacity style={styles.cardButton}>
+                  <TouchableOpacity 
+                    style={styles.cardButton}
+                    onPress={() => router.push("/start-learning")}
+                  >
                     <Text style={styles.cardButtonText}>Start Learning ✨</Text>
                   </TouchableOpacity>
                 </View>
