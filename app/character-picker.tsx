@@ -146,9 +146,10 @@ export default function CharacterPickerScreen() {
                   </View>
                   <View style={styles.characterImageContainer}>
                     <Image
-                      source={{ uri: character.image }}
+                      source={character.image}
                       style={styles.characterImage}
                       contentFit="contain"
+                      transition={200}
                     />
                   </View>
                 </TouchableOpacity>
@@ -272,14 +273,16 @@ const styles = StyleSheet.create({
     color: Colors.grayText,
   },
   characterImageContainer: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: 12,
   },
   characterImage: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
+    borderRadius: 12,
   },
   backButton: {
     backgroundColor: Colors.darkBrown,
