@@ -121,7 +121,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.card}
             activeOpacity={0.95}
-            onPress={() => router.push("/create-notes")}
+            onPress={() => router.push("/start-learning")}
           >
             <LinearGradient
               colors={[Colors.gradientGreenStart, Colors.gradientLimeEnd] as const}
@@ -135,7 +135,10 @@ export default function HomeScreen() {
                   <Text style={styles.cardDescription}>
                     Create notes, quizzes, flashcards and more to help you learn faster.
                   </Text>
-                  <TouchableOpacity style={styles.cardButton}>
+                  <TouchableOpacity 
+                    style={styles.cardButton}
+                    onPress={() => router.push("/start-learning")}
+                  >
                     <Text style={styles.cardButtonText}>Create Notes 🎁</Text>
                   </TouchableOpacity>
                 </View>

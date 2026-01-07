@@ -120,10 +120,10 @@ export default function LibraryScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.createButton}
-                onPress={() => router.push("/create-notes")}
+                onPress={() => router.push("/start-learning")}
                 activeOpacity={0.8}
               >
-                <Text style={styles.createButtonText}>Create Note</Text>
+                <Text style={styles.createButtonText}>Start Learning</Text>
               </TouchableOpacity>
             </View>
           ) : (
