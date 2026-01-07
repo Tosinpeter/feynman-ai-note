@@ -14,6 +14,11 @@ import Colors from "@/constants/colors";
 
 const RACCOON_MASCOT = "https://r2-pub.rork.com/generated-images/97b402cd-3c09-435e-803e-c6c62955985a.png";
 
+const TOM_CHARACTER = "https://r2-pub.rork.com/generated-images/6a5a1e49-bb93-4db1-acfa-f48ab77e7dd8.png";
+const LUCY_CHARACTER = "https://r2-pub.rork.com/generated-images/3b19ca64-eee5-4cbd-ad61-1b0f26cef8b2.png";
+const KENNY_CHARACTER = "https://r2-pub.rork.com/generated-images/13071b8f-a9fe-4eb4-bd49-bb1e9dcca067.png";
+const MIA_CHARACTER = "https://r2-pub.rork.com/generated-images/0a22a7e9-48b4-44d4-a92c-90f76d6f5c28.png";
+
 interface Character {
   name: string;
   age: number;
@@ -30,7 +35,7 @@ const characters: Character[] = [
     age: 5,
     level: "super hard",
     levelColor: "#EF4444",
-    image: "https://r2-pub.rork.com/generated-images/tom-character.png",
+    image: TOM_CHARACTER,
     difficulty: "super_hard",
     barCount: 4,
   },
@@ -39,7 +44,7 @@ const characters: Character[] = [
     age: 12,
     level: "hard",
     levelColor: "#F97316",
-    image: "https://r2-pub.rork.com/generated-images/lucy-character.png",
+    image: LUCY_CHARACTER,
     difficulty: "hard",
     barCount: 3,
   },
@@ -48,7 +53,7 @@ const characters: Character[] = [
     age: 16,
     level: "medium",
     levelColor: "#F59E0B",
-    image: "https://r2-pub.rork.com/generated-images/kenny-character.png",
+    image: KENNY_CHARACTER,
     difficulty: "medium",
     barCount: 2,
   },
@@ -57,7 +62,7 @@ const characters: Character[] = [
     age: 22,
     level: "easy",
     levelColor: "#10B981",
-    image: "https://r2-pub.rork.com/generated-images/mia-character.png",
+    image: MIA_CHARACTER,
     difficulty: "easy",
     barCount: 1,
   },
@@ -140,15 +145,11 @@ export default function CharacterPickerScreen() {
                     </View>
                   </View>
                   <View style={styles.characterImageContainer}>
-                    <Text style={styles.characterEmoji}>
-                      {character.name === "Tom"
-                        ? "🦝"
-                        : character.name === "Lucy"
-                        ? "👧"
-                        : character.name === "Kenny"
-                        ? "🧑"
-                        : "👩"}
-                    </Text>
+                    <Image
+                      source={{ uri: character.image }}
+                      style={styles.characterImage}
+                      contentFit="contain"
+                    />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -271,13 +272,14 @@ const styles = StyleSheet.create({
     color: Colors.grayText,
   },
   characterImageContainer: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     justifyContent: "center",
     alignItems: "center",
   },
-  characterEmoji: {
-    fontSize: 70,
+  characterImage: {
+    width: 120,
+    height: 120,
   },
   backButton: {
     backgroundColor: Colors.darkBrown,
