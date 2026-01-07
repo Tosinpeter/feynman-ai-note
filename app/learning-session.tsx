@@ -7,12 +7,15 @@ import {
   Platform,
   Animated,
   Alert,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams, Stack } from "expo-router";
+import { useLocalSearchParams, Stack, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { Mic, Square } from "lucide-react-native";
+import { Mic, Square, CheckCircle, ArrowRight } from "lucide-react-native";
 import { Audio } from "expo-av";
+import { generateText } from "@rork-ai/toolkit-sdk";
 import Colors from "@/constants/colors";
 
 const TOM_CHARACTER = "https://r2-pub.rork.com/generated-images/7f688633-6fbb-4e61-845c-f3f3d20e6992.png";
@@ -59,7 +62,11 @@ export default function LearningSessionScreen() {
   const [understanding, setUnderstanding] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeneratingResponse, setIsGeneratingResponse] = useState(false);
   const [transcription, setTranscription] = useState("");
+  const [characterResponse, setCharacterResponse] = useState("");
+  const [conversationHistory, setConversationHistory] = useState<{role: "user" | "assistant", content: string}[]>([]);
+  const [sessionComplete, setSessionComplete] = useState(false);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -68,6 +75,54 @@ export default function LearningSessionScreen() {
 
   const characterImage = characterImages[characterName] || TOM_CHARACTER;
   const topicEmoji = getTopicEmoji(topic);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const generateCharacterResponse = useCallback(async (userExplanation: string, currentUnderstanding: number) => {
+    setIsGeneratingResponse(true);
+    try {
+      const systemPrompt = `You are ${characterName}, a curious ${characterAge}-year-old child. The user is teaching you about "${topic}". 
+      
+Your personality:
+- Speak like a ${characterAge}-year-old would (simple words, curious questions)
+- Be genuinely interested and excited to learn
+- Ask follow-up questions about things you don't understand
+- Use simple expressions like "Wow!", "Really?", "That's so cool!"
+
+Current understanding level: ${currentUnderstanding}%
+
+If understanding is below 50%: Ask basic clarifying questions, seem a bit confused but interested.
+If understanding is 50-80%: Show you're getting it, ask deeper questions.
+If understanding is above 80%: Show excitement that you understand, maybe summarize what you learned.
+If understanding is 100%: Thank them enthusiastically and say you totally get it now!
+
+Keep your response short (2-3 sentences max). Be encouraging and sweet.`;
+
+      const response = await generateText({
+        messages: [
+          { role: "user", content: systemPrompt },
+          ...conversationHistory,
+          { role: "user", content: userExplanation }
+        ]
+      });
+
+      console.log("Character response:", response);
+      setCharacterResponse(response);
+      setConversationHistory(prev => [
+        ...prev,
+        { role: "user", content: userExplanation },
+        { role: "assistant", content: response }
+      ]);
+
+      if (currentUnderstanding >= 100) {
+        setSessionComplete(true);
+      }
+    } catch (err) {
+      console.error("Failed to generate response:", err);
+      setCharacterResponse("Hmm, I'm thinking... Can you tell me more?");
+    } finally {
+      setIsGeneratingResponse(false);
+    }
+  }, [characterName, characterAge, topic, conversationHistory]);
 
   useEffect(() => {
     if (isRecording) {
@@ -285,10 +340,12 @@ export default function LearningSessionScreen() {
           const text = await transcribeAudio(audioData);
           if (text) {
             setTranscription(text);
-            const newUnderstanding = Math.min(understanding + 20, 100);
+            const newUnderstanding = Math.min(understanding + 25, 100);
             setUnderstanding(newUnderstanding);
             console.log("Transcription:", text);
             console.log("Understanding increased to:", newUnderstanding);
+            
+            await generateCharacterResponse(text, newUnderstanding);
           }
         }
       } catch (err) {
@@ -312,6 +369,10 @@ export default function LearningSessionScreen() {
     }
   };
 
+  const handleFinishSession = () => {
+    router.replace("/");
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -323,59 +384,111 @@ export default function LearningSessionScreen() {
             <View style={styles.progressContainer}>
               <Text style={styles.emoji}>🤔</Text>
               <View style={styles.progressBarBackground}>
-                <View style={[styles.progressBarFill, { width: `${understanding}%` }]} />
+                <Animated.View style={[styles.progressBarFill, { width: `${understanding}%` }]} />
               </View>
               <Text style={styles.emoji}>🧠</Text>
             </View>
 
-            <View style={styles.characterSection}>
-              <View style={styles.purpleBlobOuter}>
-                <View style={styles.purpleBlobInner}>
-                  <Image
-                    source={characterImage}
-                    style={styles.characterImage}
-                    contentFit="contain"
-                  />
+            <ScrollView 
+              ref={scrollViewRef}
+              style={styles.chatArea}
+              contentContainerStyle={styles.chatContent}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+            >
+              <View style={styles.characterSection}>
+                <View style={styles.purpleBlobOuter}>
+                  <View style={styles.purpleBlobInner}>
+                    <Image
+                      source={characterImage}
+                      style={styles.characterImage}
+                      contentFit="contain"
+                    />
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <Text style={styles.explainText}>
-              Explain me the {topic} {topicEmoji}, like I&apos;m {characterAge} years old!
-            </Text>
+              {!characterResponse && !sessionComplete && (
+                <Text style={styles.explainText}>
+                  Explain me the {topic} {topicEmoji}, like I&apos;m {characterAge} years old!
+                </Text>
+              )}
 
-            <View style={styles.bottomSection}>
-              <Text style={styles.pressToTalk}>
-                {isProcessing ? "Processing..." : isRecording ? "Tap to stop" : "Press to talk"}
-              </Text>
-              
-              {transcription ? (
-                <View style={styles.transcriptionBubble}>
-                  <Text style={styles.transcriptionText} numberOfLines={3}>
-                    {transcription}
-                  </Text>
+              {transcription && (
+                <View style={styles.userBubble}>
+                  <Text style={styles.userBubbleText}>{transcription}</Text>
                 </View>
-              ) : null}
-              
-              <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnim : 1 }] }}>
-                <TouchableOpacity
-                  style={[
-                    styles.micButton, 
-                    isRecording && styles.micButtonRecording,
-                    isProcessing && styles.micButtonProcessing,
-                  ]}
-                  onPress={handleMicPress}
-                  activeOpacity={0.8}
-                  disabled={isProcessing}
-                >
-                  {isRecording ? (
-                    <Square size={28} color={Colors.white} fill={Colors.white} />
-                  ) : (
-                    <Mic size={32} color={isProcessing ? Colors.white : "#4B5563"} />
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
+              )}
+
+              {isGeneratingResponse && (
+                <View style={styles.typingIndicator}>
+                  <ActivityIndicator size="small" color="#8B5CF6" />
+                  <Text style={styles.typingText}>{characterName} is thinking...</Text>
+                </View>
+              )}
+
+              {characterResponse && !isGeneratingResponse && (
+                <View style={styles.characterBubble}>
+                  <View style={styles.characterBubbleAvatar}>
+                    <Image
+                      source={characterImage}
+                      style={styles.bubbleAvatar}
+                      contentFit="contain"
+                    />
+                  </View>
+                  <View style={styles.characterBubbleContent}>
+                    <Text style={styles.characterBubbleText}>{characterResponse}</Text>
+                  </View>
+                </View>
+              )}
+
+              {sessionComplete && (
+                <View style={styles.completionSection}>
+                  <View style={styles.completionBadge}>
+                    <CheckCircle size={48} color="#10B981" />
+                  </View>
+                  <Text style={styles.completionTitle}>Great Job! 🎉</Text>
+                  <Text style={styles.completionSubtitle}>
+                    You successfully explained {topic} to {characterName}!
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.finishButton}
+                    onPress={handleFinishSession}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.finishButtonText}>Finish Session</Text>
+                    <ArrowRight size={20} color={Colors.white} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+
+            {!sessionComplete && (
+              <View style={styles.bottomSection}>
+                <Text style={styles.pressToTalk}>
+                  {isProcessing ? "Processing..." : isGeneratingResponse ? `${characterName} is responding...` : isRecording ? "Tap to stop" : "Press to talk"}
+                </Text>
+                
+                <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnim : 1 }] }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.micButton, 
+                      isRecording && styles.micButtonRecording,
+                      (isProcessing || isGeneratingResponse) && styles.micButtonProcessing,
+                    ]}
+                    onPress={handleMicPress}
+                    activeOpacity={0.8}
+                    disabled={isProcessing || isGeneratingResponse}
+                  >
+                    {isRecording ? (
+                      <Square size={28} color={Colors.white} fill={Colors.white} />
+                    ) : (
+                      <Mic size={32} color={(isProcessing || isGeneratingResponse) ? Colors.white : "#4B5563"} />
+                    )}
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+            )}
           </View>
         </SafeAreaView>
       </View>
@@ -425,9 +538,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#10B981",
     borderRadius: 6,
   },
+  chatArea: {
+    flex: 1,
+    width: "100%",
+  },
+  chatContent: {
+    paddingBottom: 20,
+  },
   characterSection: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 24,
   },
   purpleBlobOuter: {
     width: 220,
@@ -451,18 +571,118 @@ const styles = StyleSheet.create({
     height: 150,
   },
   explainText: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "700" as const,
     color: Colors.darkText,
     textAlign: "center",
-    lineHeight: 40,
+    lineHeight: 34,
     paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  userBubble: {
+    alignSelf: "flex-end",
+    backgroundColor: "#8B5CF6",
+    borderRadius: 20,
+    borderBottomRightRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxWidth: "80%",
+    marginBottom: 16,
+  },
+  userBubbleText: {
+    fontSize: 15,
+    color: Colors.white,
+    lineHeight: 22,
+  },
+  characterBubble: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginBottom: 16,
+    maxWidth: "85%",
+  },
+  characterBubbleAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E0D4FC",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+    overflow: "hidden",
+  },
+  bubbleAvatar: {
+    width: 30,
+    height: 30,
+  },
+  characterBubbleContent: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 20,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flex: 1,
+  },
+  characterBubbleText: {
+    fontSize: 15,
+    color: Colors.darkText,
+    lineHeight: 22,
+  },
+  typingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  typingText: {
+    fontSize: 14,
+    color: Colors.grayText,
+    fontStyle: "italic" as const,
+  },
+  completionSection: {
+    alignItems: "center",
+    paddingVertical: 32,
+  },
+  completionBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#D1FAE5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  completionTitle: {
+    fontSize: 28,
+    fontWeight: "700" as const,
+    color: Colors.darkText,
+    marginBottom: 8,
+  },
+  completionSubtitle: {
+    fontSize: 16,
+    color: Colors.grayText,
+    textAlign: "center",
+    marginBottom: 32,
+    paddingHorizontal: 24,
+  },
+  finishButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 30,
+    gap: 8,
+  },
+  finishButtonText: {
+    fontSize: 18,
+    fontWeight: "600" as const,
+    color: Colors.white,
   },
   bottomSection: {
-    flex: 1,
-    justifyContent: "flex-end",
     alignItems: "center",
-    paddingBottom: 40,
+    paddingBottom: 24,
+    paddingTop: 12,
   },
   pressToTalk: {
     fontSize: 16,
@@ -497,18 +717,5 @@ const styles = StyleSheet.create({
   micButtonProcessing: {
     backgroundColor: "#8B5CF6",
   },
-  transcriptionBubble: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-    maxWidth: "90%",
-  },
-  transcriptionText: {
-    fontSize: 14,
-    color: Colors.darkText,
-    textAlign: "center",
-    lineHeight: 20,
-  },
+
 });
