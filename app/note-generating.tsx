@@ -25,9 +25,9 @@ import { generateText } from '@rork-ai/toolkit-sdk';
 import { useExplanations } from '@/contexts/explanations';
 
 const STT_API_URL = 'https://toolkit.rork.com/stt/transcribe/';
-const MAX_RETRIES = 3;
-const REQUEST_TIMEOUT = 180000;
-const RETRY_DELAYS = [2000, 4000, 6000];
+const MAX_RETRIES = 5;
+const REQUEST_TIMEOUT = 120000;
+const RETRY_DELAYS = [1000, 2000, 3000, 4000, 5000];
 
 type StepStatus = 'pending' | 'in-progress' | 'completed' | 'error';
 
@@ -169,14 +169,20 @@ export default function NoteGeneratingScreen() {
 
     const performFetch = async (formData: FormData): Promise<string | null> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout, aborting...');
+        controller.abort();
+      }, REQUEST_TIMEOUT);
       
       try {
         console.log('Sending audio to STT API:', STT_API_URL);
+        
         const sttResponse = await fetch(STT_API_URL, {
           method: 'POST',
           body: formData,
           signal: controller.signal,
+          mode: 'cors',
+          credentials: 'omit',
         });
         
         clearTimeout(timeoutId);
@@ -200,8 +206,9 @@ export default function NoteGeneratingScreen() {
           }
           return null;
         }
-      } catch (error) {
+      } catch (error: any) {
         clearTimeout(timeoutId);
+        console.error('Fetch error:', error?.message || error);
         throw error;
       }
     };
@@ -221,7 +228,7 @@ export default function NoteGeneratingScreen() {
           const commaIndex = audioBase64.indexOf(',');
           if (commaIndex === -1) {
             console.error('Cannot find comma in data URL');
-            return webTranscript;
+            return webTranscript || '';
           }
           
           const header = audioBase64.substring(0, commaIndex);
@@ -241,7 +248,7 @@ export default function NoteGeneratingScreen() {
         
         if (!base64Data || base64Data.length < 100) {
           console.error('Base64 data too short or empty');
-          return webTranscript;
+          return webTranscript || '';
         }
         
         // Convert base64 to blob
@@ -254,7 +261,7 @@ export default function NoteGeneratingScreen() {
           }
         } catch (atobError) {
           console.error('Failed to decode base64:', atobError);
-          return webTranscript;
+          return webTranscript || '';
         }
         
         const byteArray = new Uint8Array(byteNumbers);
@@ -263,7 +270,7 @@ export default function NoteGeneratingScreen() {
         
         if (blob.size < 100) {
           console.error('Blob too small, likely corrupted data');
-          return webTranscript;
+          return webTranscript || '';
         }
         
         let fileExtension = 'webm';
@@ -280,22 +287,30 @@ export default function NoteGeneratingScreen() {
         const result = await performFetch(formData);
         if (result) return result;
         
-        return webTranscript;
-      } catch (error) {
-        console.error('=== Transcription Error (base64) ===', error);
+        console.log('STT returned empty result');
+        return webTranscript || '';
+      } catch (error: any) {
+        console.error('=== Transcription Error (base64) ===', error?.message || error);
         
-        const isNetworkError = error instanceof TypeError || 
-          (error instanceof Error && (error.name === 'AbortError' || error.message.includes('network') || error.message.includes('Network')));
+        const errorMessage = error?.message || String(error);
+        const isRetryableError = 
+          error instanceof TypeError || 
+          error?.name === 'AbortError' ||
+          errorMessage.includes('network') || 
+          errorMessage.includes('Network') ||
+          errorMessage.includes('fetch') ||
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('NetworkError');
         
-        if (retryCount < MAX_RETRIES && isNetworkError) {
+        if (retryCount < MAX_RETRIES && isRetryableError) {
           const delay = RETRY_DELAYS[retryCount] || 2000;
           console.log(`Network error, retrying in ${delay}ms (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return transcribeAudio(retryCount + 1);
         }
         
-        console.log('Max retries reached or non-retryable error, returning fallback');
-        return webTranscript;
+        console.log('Max retries reached or non-retryable error, continuing without transcription');
+        return '';
       }
     }
     
@@ -369,23 +384,31 @@ export default function NoteGeneratingScreen() {
       const result = await performFetch(formData);
       if (result) return result;
       
-      console.log('STT returned empty, falling back to web transcript');
-      return webTranscript;
-    } catch (error) {
-      console.error('=== Transcription Error ===', error);
+      console.log('STT returned empty result');
+      return webTranscript || '';
+    } catch (error: any) {
+      console.error('=== Transcription Error ===', error?.message || error);
       
-      const isNetworkError = error instanceof TypeError || 
-        (error instanceof Error && (error.name === 'AbortError' || error.message.includes('network') || error.message.includes('Network') || error.message.includes('Server error')));
+      const errorMessage = error?.message || String(error);
+      const isRetryableError = 
+        error instanceof TypeError || 
+        error?.name === 'AbortError' ||
+        errorMessage.includes('network') || 
+        errorMessage.includes('Network') ||
+        errorMessage.includes('fetch') ||
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('NetworkError') ||
+        errorMessage.includes('Server error');
       
-      if (retryCount < MAX_RETRIES && isNetworkError) {
+      if (retryCount < MAX_RETRIES && isRetryableError) {
         const delay = RETRY_DELAYS[retryCount] || 2000;
         console.log(`Network error, retrying in ${delay}ms (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return transcribeAudio(retryCount + 1);
       }
       
-      console.log('Max retries reached or non-retryable error, returning fallback');
-      return webTranscript;
+      console.log('Max retries reached or non-retryable error, continuing without transcription');
+      return '';
     }
   };
 
