@@ -189,34 +189,14 @@ export default function NoteGeneratingAudioScreen() {
         
         let audioFile: File | null = null;
         
-        // Try getting file from context first
+        // Try getting file from context first (uses base64 storage)
         const storedFile = getAudioFile();
         if (storedFile && storedFile.size > 100) {
           audioFile = storedFile;
           console.log('Using stored file from context:', audioFile.name, audioFile.size);
         }
         
-        // Try webFile from audioData
-        if (!audioFile && audioData?.webFile && audioData.webFile.size > 100) {
-          audioFile = audioData.webFile;
-          console.log('Using webFile from audioData:', audioFile.name, audioFile.size);
-        }
-        
-        // Try creating from arrayBuffer
-        if (!audioFile && audioData?.arrayBuffer && audioData.arrayBuffer.byteLength > 100) {
-          try {
-            audioFile = new File(
-              [audioData.arrayBuffer], 
-              fileName || `audio.${fileExtension}`, 
-              { type: fileMimeType }
-            );
-            console.log('Created File from arrayBuffer:', audioFile.name, audioFile.size);
-          } catch (e) {
-            console.error('Failed to create File from arrayBuffer:', e);
-          }
-        }
-        
-        // Last resort: try fetching from URI
+        // Fallback: try fetching from URI (may not work if blob URL expired)
         if (!audioFile && audioUri) {
           try {
             console.log('Fetching from URI as fallback:', audioUri);

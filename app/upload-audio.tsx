@@ -96,34 +96,45 @@ export default function UploadAudioScreen() {
     console.log('=== Preparing audio file for processing ===');
     console.log('Selected file:', selectedFile.name, selectedFile.size);
     console.log('Has webFile:', !!selectedFile.webFile);
+    console.log('Platform:', Platform.OS);
     
     let webFile = selectedFile.webFile;
     
-    // On web, ensure we have a valid File object
-    if (Platform.OS === 'web' && !webFile && selectedFile.uri) {
-      try {
-        console.log('Creating File from URI...');
-        const response = await fetch(selectedFile.uri);
-        const blob = await response.blob();
-        webFile = new File([blob], selectedFile.name, { 
-          type: selectedFile.mimeType || blob.type || 'audio/mpeg' 
-        });
-        console.log('Created File:', webFile.name, webFile.size, webFile.type);
-      } catch (e) {
-        console.error('Failed to create File from URI:', e);
+    if (Platform.OS === 'web') {
+      if (!webFile && selectedFile.uri) {
+        try {
+          console.log('Creating File from URI...');
+          const response = await fetch(selectedFile.uri);
+          const blob = await response.blob();
+          webFile = new File([blob], selectedFile.name, { 
+            type: selectedFile.mimeType || blob.type || 'audio/mpeg' 
+          });
+          console.log('Created File:', webFile.name, webFile.size, webFile.type);
+        } catch (e) {
+          console.error('Failed to create File from URI:', e);
+        }
+      }
+      
+      if (!webFile || webFile.size < 100) {
+        console.error('No valid audio file available');
+        return;
       }
     }
 
     console.log('Setting audio file in context...');
-    await setAudioFile({
-      uri: selectedFile.uri,
-      fileName: selectedFile.name,
-      mimeType: selectedFile.mimeType || webFile?.type || '',
-      webFile: webFile,
-    });
+    try {
+      await setAudioFile({
+        uri: selectedFile.uri,
+        fileName: selectedFile.name,
+        mimeType: selectedFile.mimeType || webFile?.type || 'audio/mpeg',
+        webFile: webFile,
+      });
+      console.log('Audio file set in context successfully');
+    } catch (e) {
+      console.error('Failed to set audio file in context:', e);
+    }
 
-    // Small delay to ensure context is updated
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     router.push({
       pathname: '/note-generating-audio',
@@ -131,7 +142,7 @@ export default function UploadAudioScreen() {
         audioUri: selectedFile.uri,
         fileName: selectedFile.name,
         language: selectedLanguage,
-        mimeType: selectedFile.mimeType || webFile?.type || '',
+        mimeType: selectedFile.mimeType || webFile?.type || 'audio/mpeg',
       },
     });
   };

@@ -25,6 +25,8 @@ import { generateText } from '@rork-ai/toolkit-sdk';
 import { useExplanations } from '@/contexts/explanations';
 
 const STT_API_URL = 'https://toolkit.rork.com/stt/transcribe/';
+const MAX_RETRIES = 2;
+const REQUEST_TIMEOUT = 120000;
 
 type StepStatus = 'pending' | 'in-progress' | 'completed' | 'error';
 
@@ -139,20 +141,19 @@ export default function NoteGeneratingScreen() {
     }
   };
 
-  const transcribeAudio = async (): Promise<string> => {
+  const transcribeAudio = async (retryCount = 0): Promise<string> => {
     console.log('=== Starting Transcription ===');
     console.log('Audio URI:', audioUri);
     console.log('Platform:', Platform.OS);
     console.log('Web transcript available:', webTranscript.length > 0);
-    console.log('Web transcript content:', webTranscript);
     console.log('Audio base64 available:', audioBase64.length > 0);
     console.log('Audio base64 length:', audioBase64.length);
     console.log('Source type:', sourceType);
+    console.log('Retry count:', retryCount);
     
     // For web recordings, ALWAYS prioritize audioBase64 from MediaRecorder for accurate transcription
     if (Platform.OS === 'web' && audioBase64 && audioBase64.length > 100) {
       console.log('=== Using audioBase64 for web transcription (STT API) ===');
-      console.log('Raw audioBase64 starts with:', audioBase64.substring(0, 50));
       try {
         const formData = new FormData();
         
@@ -165,102 +166,108 @@ export default function NoteGeneratingScreen() {
           const commaIndex = audioBase64.indexOf(',');
           if (commaIndex === -1) {
             console.error('Cannot find comma in data URL');
-            return '';
+            return webTranscript;
           }
           
           const header = audioBase64.substring(0, commaIndex);
           base64Data = audioBase64.substring(commaIndex + 1);
           
-          // Extract mime type from header like "data:audio/webm;codecs=opus;base64" or "data:audio/webm;base64"
           const mimeMatch = header.match(/data:([^;,]+)/);
           if (mimeMatch) {
             fileMimeType = mimeMatch[1];
           }
           
-          console.log('Parsed header:', header);
           console.log('Extracted mime type:', fileMimeType);
           console.log('Base64 data length:', base64Data.length);
         } else {
-          // Assume it's raw base64
           base64Data = audioBase64;
           console.log('Using raw base64 data, length:', base64Data.length);
         }
         
         if (!base64Data || base64Data.length < 100) {
           console.error('Base64 data too short or empty');
-          return '';
+          return webTranscript;
         }
         
         // Convert base64 to blob
-        let byteArray: number[];
+        let byteNumbers: number[];
         try {
           const byteCharacters = atob(base64Data);
-          byteArray = [];
+          byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
-            byteArray.push(byteCharacters.charCodeAt(i));
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
           }
         } catch (atobError) {
           console.error('Failed to decode base64:', atobError);
-          return '';
+          return webTranscript;
         }
         
-        const blob = new Blob([new Uint8Array(byteArray).buffer], { type: fileMimeType });
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray.buffer], { type: fileMimeType });
         console.log('Created blob from base64, size:', blob.size, 'type:', fileMimeType);
         
         if (blob.size < 100) {
           console.error('Blob too small, likely corrupted data');
-          return '';
+          return webTranscript;
         }
         
-        // Determine file extension
         let fileExtension = 'webm';
-        if (fileMimeType.includes('webm')) {
-          fileExtension = 'webm';
-        } else if (fileMimeType.includes('mp3') || fileMimeType.includes('mpeg')) {
-          fileExtension = 'mp3';
-        } else if (fileMimeType.includes('wav')) {
-          fileExtension = 'wav';
-        } else if (fileMimeType.includes('m4a') || fileMimeType.includes('mp4')) {
-          fileExtension = 'm4a';
-        }
+        if (fileMimeType.includes('webm')) fileExtension = 'webm';
+        else if (fileMimeType.includes('mp3') || fileMimeType.includes('mpeg')) fileExtension = 'mp3';
+        else if (fileMimeType.includes('wav')) fileExtension = 'wav';
+        else if (fileMimeType.includes('m4a') || fileMimeType.includes('mp4')) fileExtension = 'm4a';
         
         const audioFile = new File([blob], `recording.${fileExtension}`, { type: fileMimeType });
         formData.append('audio', audioFile);
         
         console.log('Sending audio to STT API:', STT_API_URL);
-        console.log('FormData ready to send');
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
         
         const sttResponse = await fetch(STT_API_URL, {
           method: 'POST',
           body: formData,
+          signal: controller.signal,
         });
         
+        clearTimeout(timeoutId);
         console.log('STT API response status:', sttResponse.status);
         
         if (sttResponse.ok) {
           const result = await sttResponse.json();
           console.log('=== STT API Result (SUCCESS) ===');
           console.log('Transcribed text:', result.text);
-          console.log('Detected language:', result.language);
           
           if (result.text && result.text.trim().length > 0) {
-            console.log('Using STT API transcription (accurate)');
             return result.text.trim();
-          } else {
-            console.log('STT API returned empty text');
           }
         } else {
           const errorText = await sttResponse.text();
           console.error('STT API error response:', sttResponse.status, errorText);
+          
+          if (retryCount < MAX_RETRIES && (sttResponse.status >= 500 || sttResponse.status === 0)) {
+            console.log(`Retrying transcription (attempt ${retryCount + 2})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            return transcribeAudio(retryCount + 1);
+          }
         }
         
-        // Do NOT fall back to webTranscript - it's inaccurate
-        console.log('STT API failed, returning empty string');
-        return '';
+        return webTranscript;
       } catch (error) {
         console.error('=== Transcription Error (base64) ===', error);
-        // Do NOT fall back to webTranscript - it's inaccurate
-        return '';
+        
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('Request timed out');
+        }
+        
+        if (retryCount < MAX_RETRIES && error instanceof TypeError) {
+          console.log(`Network error, retrying (attempt ${retryCount + 2})...`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
+          return transcribeAudio(retryCount + 1);
+        }
+        
+        return webTranscript;
       }
     }
     
@@ -277,7 +284,6 @@ export default function NoteGeneratingScreen() {
         let fileExtension = 'webm';
         let fileMimeType = 'audio/webm';
         
-        // Fallback to fetching from URI
         console.log('Fetching blob from web URI...');
         try {
           const response = await fetch(audioUri);
@@ -288,7 +294,6 @@ export default function NoteGeneratingScreen() {
           return webTranscript;
         }
         
-        // Determine file extension and mime type from fileName or blob
         if (fileName && fileName.includes('.')) {
           const parts = fileName.split('.');
           fileExtension = parts[parts.length - 1].toLowerCase();
@@ -318,7 +323,7 @@ export default function NoteGeneratingScreen() {
         formData.append('audio', audioFile);
       } else {
         const uriParts = audioUri.split('.');
-        const fileType = uriParts[uriParts.length - 1];
+        const fileType = uriParts[uriParts.length - 1].split('?')[0];
         console.log('File type detected:', fileType);
         
         const audioFile = {
@@ -327,28 +332,39 @@ export default function NoteGeneratingScreen() {
           type: fileType === 'wav' ? 'audio/wav' : fileType === 'm4a' ? 'audio/m4a' : `audio/${fileType}`,
         } as any;
         
-        console.log('Audio file object:', JSON.stringify(audioFile));
         formData.append('audio', audioFile);
       }
       
       console.log('Sending audio to STT API:', STT_API_URL);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+      
       const sttResponse = await fetch(STT_API_URL, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
       
+      clearTimeout(timeoutId);
       console.log('STT API response status:', sttResponse.status);
       
       if (!sttResponse.ok) {
         const errorText = await sttResponse.text();
         console.error('STT API error response:', errorText);
-        throw new Error(`STT API error: ${sttResponse.status}`);
+        
+        if (retryCount < MAX_RETRIES && (sttResponse.status >= 500 || sttResponse.status === 0)) {
+          console.log(`Retrying transcription (attempt ${retryCount + 2})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return transcribeAudio(retryCount + 1);
+        }
+        
+        return webTranscript;
       }
       
       const result = await sttResponse.json();
       console.log('=== STT API Result ===');
       console.log('Transcribed text:', result.text);
-      console.log('Detected language:', result.language);
       
       if (result.text && result.text.trim().length > 0) {
         return result.text.trim();
@@ -358,6 +374,17 @@ export default function NoteGeneratingScreen() {
       return webTranscript;
     } catch (error) {
       console.error('=== Transcription Error ===', error);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Request timed out');
+      }
+      
+      if (retryCount < MAX_RETRIES && error instanceof TypeError) {
+        console.log(`Network error, retrying (attempt ${retryCount + 2})...`);
+        await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
+        return transcribeAudio(retryCount + 1);
+      }
+      
       return webTranscript;
     }
   };
