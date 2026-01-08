@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,50 @@ export default function UploadAudioScreen() {
   } | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState('Auto detect');
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const webFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'audio/*';
+      input.style.display = 'none';
+      input.onchange = async (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (file) {
+          console.log('=== Web: Got file directly from input ===');
+          console.log('File:', file.name, file.type, file.size);
+          
+          const uri = URL.createObjectURL(file);
+          
+          await setAudioFile({
+            uri: uri,
+            fileName: file.name,
+            mimeType: file.type || 'audio/mpeg',
+            webFile: file,
+          });
+          
+          setSelectedFile({
+            name: file.name,
+            uri: uri,
+            size: file.size,
+            mimeType: file.type,
+            webFile: file,
+          });
+        }
+        target.value = '';
+      };
+      document.body.appendChild(input);
+      webFileInputRef.current = input;
+      
+      return () => {
+        if (webFileInputRef.current) {
+          document.body.removeChild(webFileInputRef.current);
+        }
+      };
+    }
+  }, [setAudioFile]);
 
 
   const languages = [
@@ -42,6 +86,11 @@ export default function UploadAudioScreen() {
 
   const handleUploadPress = async () => {
     try {
+      if (Platform.OS === 'web' && webFileInputRef.current) {
+        webFileInputRef.current.click();
+        return;
+      }
+      
       const result = await DocumentPicker.getDocumentAsync({
         type: 'audio/*',
         copyToCacheDirectory: true,
@@ -50,55 +99,12 @@ export default function UploadAudioScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         
-        let webFile: File | null = null;
-        
-        if (Platform.OS === 'web') {
-          console.log('=== Web: Processing picked file ===');
-          console.log('File asset:', file.name, file.uri, file.mimeType);
-          
-          // Try to get the File object from different possible locations
-          if ((file as any).file instanceof File) {
-            webFile = (file as any).file as File;
-            console.log('Got web File from .file property:', webFile.name, webFile.type, webFile.size);
-          } else if (file.uri) {
-            // For web, immediately fetch the blob and create a File while URI is still valid
-            try {
-              console.log('Fetching blob from URI immediately:', file.uri);
-              const response = await fetch(file.uri);
-              if (!response.ok) {
-                throw new Error(`Fetch failed: ${response.status}`);
-              }
-              const blob = await response.blob();
-              console.log('Got blob:', blob.size, blob.type);
-              
-              // Create File with proper type
-              const fileType = file.mimeType || blob.type || 'audio/mpeg';
-              webFile = new File([blob], file.name, { type: fileType });
-              console.log('Created File from blob:', webFile.name, webFile.type, webFile.size);
-            } catch (fetchError) {
-              console.error('Failed to fetch blob from URI:', fetchError);
-            }
-          }
-          
-          // Store file in context immediately while it's valid
-          if (webFile && webFile.size > 100) {
-            console.log('Storing file in context immediately...');
-            await setAudioFile({
-              uri: file.uri,
-              fileName: file.name,
-              mimeType: file.mimeType || webFile.type || 'audio/mpeg',
-              webFile: webFile,
-            });
-            console.log('File stored in context');
-          }
-        }
-        
         setSelectedFile({
           name: file.name,
           uri: file.uri,
-          size: file.size || webFile?.size || 0,
-          mimeType: file.mimeType || webFile?.type,
-          webFile,
+          size: file.size || 0,
+          mimeType: file.mimeType,
+          webFile: null,
         });
       }
     } catch (error) {
@@ -118,8 +124,6 @@ export default function UploadAudioScreen() {
     console.log('Has webFile:', !!selectedFile.webFile);
     console.log('Platform:', Platform.OS);
     
-    // On web, file should already be in context from handleUploadPress
-    // For native, we set it now
     if (Platform.OS !== 'web') {
       console.log('Native platform: Setting audio file in context...');
       try {
@@ -132,18 +136,6 @@ export default function UploadAudioScreen() {
         console.log('Audio file set in context successfully');
       } catch (e) {
         console.error('Failed to set audio file in context:', e);
-      }
-    } else {
-      // On web, ensure file is still in context, re-store if needed
-      const existingFile = selectedFile.webFile;
-      if (existingFile && existingFile.size > 100) {
-        console.log('Web: Re-confirming file in context');
-        await setAudioFile({
-          uri: selectedFile.uri,
-          fileName: selectedFile.name,
-          mimeType: selectedFile.mimeType || existingFile.type || 'audio/mpeg',
-          webFile: existingFile,
-        });
       }
     }
 
