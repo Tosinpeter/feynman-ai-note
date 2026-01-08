@@ -25,8 +25,9 @@ import { generateText } from '@rork-ai/toolkit-sdk';
 import { useExplanations } from '@/contexts/explanations';
 
 const STT_API_URL = 'https://toolkit.rork.com/stt/transcribe/';
-const MAX_RETRIES = 2;
-const REQUEST_TIMEOUT = 120000;
+const MAX_RETRIES = 3;
+const REQUEST_TIMEOUT = 180000;
+const RETRY_DELAYS = [2000, 4000, 6000];
 
 type StepStatus = 'pending' | 'in-progress' | 'completed' | 'error';
 
@@ -165,6 +166,45 @@ export default function NoteGeneratingScreen() {
     console.log('Audio base64 length:', audioBase64.length);
     console.log('Source type:', sourceType);
     console.log('Retry count:', retryCount);
+
+    const performFetch = async (formData: FormData): Promise<string | null> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+      
+      try {
+        console.log('Sending audio to STT API:', STT_API_URL);
+        const sttResponse = await fetch(STT_API_URL, {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        console.log('STT API response status:', sttResponse.status);
+        
+        if (sttResponse.ok) {
+          const result = await sttResponse.json();
+          console.log('=== STT API Result (SUCCESS) ===');
+          console.log('Transcribed text:', result.text);
+          
+          if (result.text && result.text.trim().length > 0) {
+            return result.text.trim();
+          }
+          return null;
+        } else {
+          const errorText = await sttResponse.text();
+          console.error('STT API error response:', sttResponse.status, errorText);
+          
+          if (sttResponse.status >= 500 || sttResponse.status === 0) {
+            throw new Error(`Server error: ${sttResponse.status}`);
+          }
+          return null;
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
+    };
     
     // For web recordings, ALWAYS prioritize audioBase64 from MediaRecorder for accurate transcription
     if (Platform.OS === 'web' && audioBase64 && audioBase64.length > 100) {
@@ -231,57 +271,30 @@ export default function NoteGeneratingScreen() {
         else if (fileMimeType.includes('mp3') || fileMimeType.includes('mpeg')) fileExtension = 'mp3';
         else if (fileMimeType.includes('wav')) fileExtension = 'wav';
         else if (fileMimeType.includes('m4a') || fileMimeType.includes('mp4')) fileExtension = 'm4a';
+        else if (fileMimeType.includes('ogg')) fileExtension = 'ogg';
+        else if (fileMimeType.includes('flac')) fileExtension = 'flac';
         
         const audioFile = new File([blob], `recording.${fileExtension}`, { type: fileMimeType });
         formData.append('audio', audioFile);
         
-        console.log('Sending audio to STT API:', STT_API_URL);
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-        
-        const sttResponse = await fetch(STT_API_URL, {
-          method: 'POST',
-          body: formData,
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        console.log('STT API response status:', sttResponse.status);
-        
-        if (sttResponse.ok) {
-          const result = await sttResponse.json();
-          console.log('=== STT API Result (SUCCESS) ===');
-          console.log('Transcribed text:', result.text);
-          
-          if (result.text && result.text.trim().length > 0) {
-            return result.text.trim();
-          }
-        } else {
-          const errorText = await sttResponse.text();
-          console.error('STT API error response:', sttResponse.status, errorText);
-          
-          if (retryCount < MAX_RETRIES && (sttResponse.status >= 500 || sttResponse.status === 0)) {
-            console.log(`Retrying transcription (attempt ${retryCount + 2})...`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-            return transcribeAudio(retryCount + 1);
-          }
-        }
+        const result = await performFetch(formData);
+        if (result) return result;
         
         return webTranscript;
       } catch (error) {
         console.error('=== Transcription Error (base64) ===', error);
         
-        if (error instanceof Error && error.name === 'AbortError') {
-          console.log('Request timed out');
-        }
+        const isNetworkError = error instanceof TypeError || 
+          (error instanceof Error && (error.name === 'AbortError' || error.message.includes('network') || error.message.includes('Network')));
         
-        if (retryCount < MAX_RETRIES && error instanceof TypeError) {
-          console.log(`Network error, retrying (attempt ${retryCount + 2})...`);
-          await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
+        if (retryCount < MAX_RETRIES && isNetworkError) {
+          const delay = RETRY_DELAYS[retryCount] || 2000;
+          console.log(`Network error, retrying in ${delay}ms (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
           return transcribeAudio(retryCount + 1);
         }
         
+        console.log('Max retries reached or non-retryable error, returning fallback');
         return webTranscript;
       }
     }
@@ -302,6 +315,9 @@ export default function NoteGeneratingScreen() {
         console.log('Fetching blob from web URI...');
         try {
           const response = await fetch(audioUri);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch audio: ${response.status}`);
+          }
           blob = await response.blob();
           console.log('Blob size:', blob.size, 'type:', blob.type);
         } catch (fetchError) {
@@ -350,56 +366,25 @@ export default function NoteGeneratingScreen() {
         formData.append('audio', audioFile);
       }
       
-      console.log('Sending audio to STT API:', STT_API_URL);
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-      
-      const sttResponse = await fetch(STT_API_URL, {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      console.log('STT API response status:', sttResponse.status);
-      
-      if (!sttResponse.ok) {
-        const errorText = await sttResponse.text();
-        console.error('STT API error response:', errorText);
-        
-        if (retryCount < MAX_RETRIES && (sttResponse.status >= 500 || sttResponse.status === 0)) {
-          console.log(`Retrying transcription (attempt ${retryCount + 2})...`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-          return transcribeAudio(retryCount + 1);
-        }
-        
-        return webTranscript;
-      }
-      
-      const result = await sttResponse.json();
-      console.log('=== STT API Result ===');
-      console.log('Transcribed text:', result.text);
-      
-      if (result.text && result.text.trim().length > 0) {
-        return result.text.trim();
-      }
+      const result = await performFetch(formData);
+      if (result) return result;
       
       console.log('STT returned empty, falling back to web transcript');
       return webTranscript;
     } catch (error) {
       console.error('=== Transcription Error ===', error);
       
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Request timed out');
-      }
+      const isNetworkError = error instanceof TypeError || 
+        (error instanceof Error && (error.name === 'AbortError' || error.message.includes('network') || error.message.includes('Network') || error.message.includes('Server error')));
       
-      if (retryCount < MAX_RETRIES && error instanceof TypeError) {
-        console.log(`Network error, retrying (attempt ${retryCount + 2})...`);
-        await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
+      if (retryCount < MAX_RETRIES && isNetworkError) {
+        const delay = RETRY_DELAYS[retryCount] || 2000;
+        console.log(`Network error, retrying in ${delay}ms (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
         return transcribeAudio(retryCount + 1);
       }
       
+      console.log('Max retries reached or non-retryable error, returning fallback');
       return webTranscript;
     }
   };
