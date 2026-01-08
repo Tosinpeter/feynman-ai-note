@@ -25,9 +25,9 @@ import { generateText } from '@rork-ai/toolkit-sdk';
 import { useExplanations } from '@/contexts/explanations';
 
 const STT_API_URL = 'https://toolkit.rork.com/stt/transcribe/';
-const MAX_RETRIES = 5;
-const REQUEST_TIMEOUT = 120000;
-const RETRY_DELAYS = [1000, 2000, 3000, 4000, 5000];
+const MAX_RETRIES = 3;
+const REQUEST_TIMEOUT = 180000;
+const RETRY_DELAYS = [2000, 4000, 6000];
 
 type StepStatus = 'pending' | 'in-progress' | 'completed' | 'error';
 
@@ -181,8 +181,6 @@ export default function NoteGeneratingScreen() {
           method: 'POST',
           body: formData,
           signal: controller.signal,
-          mode: 'cors',
-          credentials: 'omit',
         });
         
         clearTimeout(timeoutId);
@@ -251,22 +249,34 @@ export default function NoteGeneratingScreen() {
           return webTranscript || '';
         }
         
-        // Convert base64 to blob
-        let byteNumbers: number[];
+        // Convert base64 to blob using fetch API (more reliable)
+        let blob: Blob;
         try {
-          const byteCharacters = atob(base64Data);
-          byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          const dataUrl = audioBase64.startsWith('data:') ? audioBase64 : `data:${fileMimeType};base64,${base64Data}`;
+          const fetchResponse = await fetch(dataUrl);
+          blob = await fetchResponse.blob();
+          console.log('Created blob from base64 via fetch, size:', blob.size, 'type:', blob.type);
+          
+          if (blob.type) {
+            fileMimeType = blob.type;
           }
-        } catch (atobError) {
-          console.error('Failed to decode base64:', atobError);
-          return webTranscript || '';
+        } catch (blobError) {
+          console.log('Fetch blob method failed, trying manual conversion:', blobError);
+          // Fallback to manual conversion
+          try {
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            blob = new Blob([byteArray.buffer], { type: fileMimeType });
+            console.log('Created blob manually, size:', blob.size);
+          } catch (atobError) {
+            console.error('Failed to decode base64:', atobError);
+            return webTranscript || '';
+          }
         }
-        
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray.buffer], { type: fileMimeType });
-        console.log('Created blob from base64, size:', blob.size, 'type:', fileMimeType);
         
         if (blob.size < 100) {
           console.error('Blob too small, likely corrupted data');
@@ -282,6 +292,7 @@ export default function NoteGeneratingScreen() {
         else if (fileMimeType.includes('flac')) fileExtension = 'flac';
         
         const audioFile = new File([blob], `recording.${fileExtension}`, { type: fileMimeType });
+        console.log('Created File object:', audioFile.name, audioFile.size, audioFile.type);
         formData.append('audio', audioFile);
         
         const result = await performFetch(formData);
