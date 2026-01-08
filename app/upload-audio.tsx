@@ -92,6 +92,17 @@ export default function UploadAudioScreen() {
       }
     }
 
+    // Encode base64 for URL safety on web
+    let encodedAudioBase64 = '';
+    if (audioBase64 && audioBase64.length > 0) {
+      try {
+        encodedAudioBase64 = encodeURIComponent(audioBase64);
+        console.log('Encoded audio base64 length:', encodedAudioBase64.length);
+      } catch (e) {
+        console.error('Failed to encode audio base64:', e);
+      }
+    }
+
     router.push({
       pathname: '/note-generating-audio',
       params: {
@@ -99,6 +110,7 @@ export default function UploadAudioScreen() {
         fileName: selectedFile.name,
         language: selectedLanguage,
         mimeType: selectedFile.mimeType || '',
+        audioBase64: encodedAudioBase64,
       },
     });
   };

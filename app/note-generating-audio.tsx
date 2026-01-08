@@ -47,6 +47,7 @@ export default function NoteGeneratingAudioScreen() {
   const fileName = typeof params.fileName === 'string' ? params.fileName : 'Audio File';
   const language = typeof params.language === 'string' ? params.language : 'Auto detect';
   const mimeType = typeof params.mimeType === 'string' ? params.mimeType : '';
+  const audioBase64Param = typeof params.audioBase64 === 'string' ? params.audioBase64 : '';
   
   const [steps, setSteps] = useState<Step[]>([
     {
@@ -146,9 +147,10 @@ export default function NoteGeneratingAudioScreen() {
     console.log('File name:', fileName);
     console.log('MIME type:', mimeType);
     console.log('Platform:', Platform.OS);
+    console.log('Has base64 param:', audioBase64Param.length > 0);
     
-    if (!audioUri) {
-      console.error('No audio URI provided');
+    if (!audioUri && !audioBase64Param) {
+      console.error('No audio URI or base64 provided');
       return '';
     }
     
@@ -156,23 +158,58 @@ export default function NoteGeneratingAudioScreen() {
       const formData = new FormData();
       
       if (Platform.OS === 'web') {
-        console.log('=== Web Platform: Fetching audio from URI ===');
+        console.log('=== Web Platform: Processing audio ===');
         
-        let blob: Blob;
-        try {
-          const response = await fetch(audioUri);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch audio: ${response.status}`);
+        let blob: Blob | null = null;
+        
+        // First try to use base64 data if available
+        if (audioBase64Param && audioBase64Param.length > 0) {
+          try {
+            console.log('Using base64 audio data...');
+            const decodedBase64 = decodeURIComponent(audioBase64Param);
+            console.log('Decoded base64 length:', decodedBase64.length);
+            
+            // Parse data URL format: data:audio/xxx;base64,XXXXX
+            const base64Match = decodedBase64.match(/^data:([^;]+);base64,(.+)$/);
+            if (base64Match) {
+              const detectedMimeType = base64Match[1];
+              const base64Data = base64Match[2];
+              console.log('Detected MIME type from base64:', detectedMimeType);
+              
+              // Convert base64 to blob
+              const byteCharacters = atob(base64Data);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              blob = new Blob([byteArray], { type: detectedMimeType });
+              console.log('Created blob from base64 - size:', blob.size, 'type:', blob.type);
+            } else {
+              console.log('Base64 data not in expected data URL format');
+            }
+          } catch (base64Error) {
+            console.error('Failed to process base64 data:', base64Error);
           }
-          blob = await response.blob();
-          console.log('Fetched blob - size:', blob.size, 'type:', blob.type);
-        } catch (fetchError) {
-          console.error('Failed to fetch audio from URI:', fetchError);
-          throw fetchError;
         }
         
-        if (blob.size < 100) {
-          console.error('Audio blob too small:', blob.size);
+        // Fallback to fetching from URI if base64 didn't work
+        if (!blob && audioUri) {
+          try {
+            console.log('Falling back to fetching from URI...');
+            const response = await fetch(audioUri);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch audio: ${response.status}`);
+            }
+            blob = await response.blob();
+            console.log('Fetched blob from URI - size:', blob.size, 'type:', blob.type);
+          } catch (fetchError) {
+            console.error('Failed to fetch audio from URI:', fetchError);
+          }
+        }
+        
+        if (!blob || blob.size < 100) {
+          console.error('Audio blob is missing or too small:', blob?.size);
           throw new Error('Audio file is too small or empty');
         }
         
