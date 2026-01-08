@@ -166,23 +166,33 @@ export default function NoteGeneratingAudioScreen() {
         
         let blob: Blob | null = storedBlob;
         
-        if (!blob && audioUri) {
-          try {
-            console.log('Fetching from URI as fallback...');
-            const response = await fetch(audioUri);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch audio: ${response.status}`);
+        // Try multiple methods to get the blob
+        if (!blob || blob.size < 100) {
+          if (audioUri) {
+            try {
+              console.log('Fetching from URI as fallback...');
+              const response = await fetch(audioUri);
+              if (response.ok) {
+                blob = await response.blob();
+                console.log('Fetched blob from URI - size:', blob.size, 'type:', blob.type);
+              } else {
+                console.error('Failed to fetch audio:', response.status);
+              }
+            } catch (fetchError) {
+              console.error('Failed to fetch audio from URI:', fetchError);
             }
-            blob = await response.blob();
-            console.log('Fetched blob from URI - size:', blob.size, 'type:', blob.type);
-          } catch (fetchError) {
-            console.error('Failed to fetch audio from URI:', fetchError);
           }
+        }
+        
+        // Check if we have webFile in audioData
+        if ((!blob || blob.size < 100) && audioData?.webFile) {
+          blob = audioData.webFile;
+          console.log('Using webFile from audioData:', blob.size, blob.type);
         }
         
         if (!blob || blob.size < 100) {
           console.error('Audio blob is missing or too small:', blob?.size);
-          throw new Error('Audio file is too small or empty');
+          throw new Error('Audio file is too small or empty. Please try uploading a different audio file.');
         }
         
         console.log('Using blob - size:', blob.size, 'type:', blob.type);
@@ -193,7 +203,7 @@ export default function NoteGeneratingAudioScreen() {
         if (fileName && fileName.includes('.')) {
           const parts = fileName.split('.');
           fileExtension = parts[parts.length - 1].toLowerCase();
-        } else if (fileMimeType) {
+        } else if (fileMimeType && fileMimeType !== 'application/octet-stream') {
           const typeMap: Record<string, string> = {
             'audio/mpeg': 'mp3',
             'audio/mp3': 'mp3',
@@ -264,10 +274,16 @@ export default function NoteGeneratingAudioScreen() {
       
       console.log('Sending to STT API:', STT_API_URL);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
       const sttResponse = await fetch(STT_API_URL, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
       
       console.log('STT API response status:', sttResponse.status);
       
@@ -290,6 +306,9 @@ export default function NoteGeneratingAudioScreen() {
       return '';
     } catch (error) {
       console.error('=== Transcription Error ===', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Transcription request timed out. Please try a shorter audio file.');
+      }
       throw error;
     }
   };

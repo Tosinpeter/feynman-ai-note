@@ -51,16 +51,33 @@ export default function UploadAudioScreen() {
         const file = result.assets[0];
         
         let webFile: File | null = null;
-        if (Platform.OS === 'web' && (file as any).file) {
-          webFile = (file as any).file as File;
-          console.log('Got web File object:', webFile.name, webFile.type, webFile.size);
+        
+        if (Platform.OS === 'web') {
+          // Try to get the File object from different possible locations
+          if ((file as any).file instanceof File) {
+            webFile = (file as any).file as File;
+            console.log('Got web File from .file property:', webFile.name, webFile.type, webFile.size);
+          } else if (file.uri) {
+            // For web, try to fetch the blob from the URI and create a File
+            try {
+              console.log('Fetching blob from URI:', file.uri);
+              const response = await fetch(file.uri);
+              const blob = await response.blob();
+              webFile = new File([blob], file.name, { 
+                type: file.mimeType || blob.type || 'audio/mpeg' 
+              });
+              console.log('Created File from URI fetch:', webFile.name, webFile.type, webFile.size);
+            } catch (fetchError) {
+              console.error('Failed to fetch blob from URI:', fetchError);
+            }
+          }
         }
         
         setSelectedFile({
           name: file.name,
           uri: file.uri,
-          size: file.size || 0,
-          mimeType: file.mimeType,
+          size: file.size || webFile?.size || 0,
+          mimeType: file.mimeType || webFile?.type,
           webFile,
         });
       }

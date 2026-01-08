@@ -25,6 +25,17 @@ export const [AudioFileProvider, useAudioFile] = createContextHook(() => {
       blob = data.webFile;
       blobRef.current = blob;
       console.log('Stored web File as blob:', blob.size, blob.type);
+    } else if (data.uri && typeof window !== 'undefined') {
+      // On web, try to fetch the blob from URI if no webFile provided
+      try {
+        console.log('Fetching blob from URI in context:', data.uri);
+        const response = await fetch(data.uri);
+        blob = await response.blob();
+        blobRef.current = blob;
+        console.log('Fetched blob from URI:', blob.size, blob.type);
+      } catch (error) {
+        console.error('Failed to fetch blob from URI in context:', error);
+      }
     }
 
     setAudioData({
