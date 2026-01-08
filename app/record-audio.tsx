@@ -233,11 +233,25 @@ export default function RecordAudioScreen() {
             audio: {
               echoCancellation: true,
               noiseSuppression: true,
+              autoGainControl: true,
               sampleRate: 44100,
+              channelCount: 1,
             } 
           });
+          
+          // Check for supported mime types
+          let mimeType = 'audio/webm;codecs=opus';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/webm';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+              mimeType = 'audio/mp4';
+            }
+          }
+          console.log('Using MediaRecorder mimeType:', mimeType);
+          
           const mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'audio/webm;codecs=opus',
+            mimeType: mimeType,
+            audioBitsPerSecond: 128000,
           });
           
           audioChunksRef.current = [];
@@ -245,10 +259,12 @@ export default function RecordAudioScreen() {
           mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
               audioChunksRef.current.push(event.data);
+              console.log('Audio chunk received, size:', event.data.size, 'total chunks:', audioChunksRef.current.length);
             }
           };
           
-          mediaRecorder.start(1000); // Collect data every second
+          // Collect data more frequently for better accuracy
+          mediaRecorder.start(500);
           mediaRecorderRef.current = mediaRecorder;
           console.log('Web MediaRecorder started for STT');
         } catch (mediaError) {
@@ -387,21 +403,56 @@ const formatTime = (seconds: number) => {
       let audioBase64 = '';
       if (Platform.OS === 'web' && mediaRecorderRef.current) {
         try {
-          // Wait for final data
+          // Request final data chunk and wait for stop
           await new Promise<void>((resolve) => {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-              mediaRecorderRef.current.onstop = () => resolve();
-              mediaRecorderRef.current.stop();
+              const recorder = mediaRecorderRef.current;
+              
+              // Set up handlers before stopping
+              let finalDataReceived = false;
+              let stopReceived = false;
+              
+              const checkComplete = () => {
+                if (finalDataReceived && stopReceived) {
+                  resolve();
+                }
+              };
+              
+              recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                  audioChunksRef.current.push(event.data);
+                  console.log('Final audio chunk received, size:', event.data.size);
+                }
+                finalDataReceived = true;
+                checkComplete();
+              };
+              
+              recorder.onstop = () => {
+                console.log('MediaRecorder stopped');
+                stopReceived = true;
+                checkComplete();
+              };
+              
+              // Request any remaining data before stopping
+              try {
+                recorder.requestData();
+              } catch {
+                console.log('requestData not supported');
+              }
+              
+              recorder.stop();
             } else {
               resolve();
             }
           });
           
+          // Stop all media tracks
           mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
           
           // Convert audio chunks to base64 for reliable transfer
+          console.log('Total audio chunks:', audioChunksRef.current.length);
           if (audioChunksRef.current.length > 0) {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
             console.log('Audio blob created, size:', audioBlob.size);
             
             if (audioBlob.size > 0) {
