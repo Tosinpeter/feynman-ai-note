@@ -195,16 +195,30 @@ Remember: Focus ONLY on the topic "${actualTitle}". Do not deviate to other subj
 
       const fetchedTitle = fetchedInfo.title || videoInfo?.title;
       let topicName = fetchedTitle || 'YouTube Video Notes';
+      
+      // Try to extract main topic from AI response
       const topicMatch = generatedContent.match(/MAIN TOPIC:\s*([^\n]+)/);
-      if (topicMatch && topicMatch[1].trim()) {
-        topicName = topicMatch[1].trim();
+      if (topicMatch && topicMatch[1].trim() && topicMatch[1].trim() !== '**') {
+        const extractedTopic = topicMatch[1].trim().replace(/^\*+|\*+$/g, '').trim();
+        if (extractedTopic && extractedTopic.length > 0) {
+          topicName = extractedTopic;
+        }
       }
-      // Prefer the actual video title if available
-      if (fetchedTitle && topicName === 'YouTube Video Notes') {
+      
+      // Always prefer the actual video title if we have one and topic extraction failed
+      if (fetchedTitle && fetchedTitle !== 'YouTube Video' && (topicName === 'YouTube Video Notes' || topicName === '**' || topicName.length < 3)) {
         topicName = fetchedTitle;
       }
+      
+      // Clean up any markdown formatting from title
+      topicName = topicName.replace(/^\*+|\*+$/g, '').replace(/^#+\s*/, '').trim();
+      
+      // Final fallback
+      if (!topicName || topicName.length < 2 || topicName === '**') {
+        topicName = 'Video Notes';
+      }
 
-      console.log('Adding explanation:', topicName);
+      console.log('Adding explanation with topic:', topicName);
       addExplanation(topicName, generatedContent);
 
       router.replace('/(tabs)/library');

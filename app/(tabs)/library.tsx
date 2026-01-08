@@ -47,13 +47,71 @@ export default function LibraryScreen() {
 
   const getEmojiForTopic = (topic: string) => {
     const lowerTopic = topic.toLowerCase();
-    if (lowerTopic.includes('math') || lowerTopic.includes('number')) return '🔢';
-    if (lowerTopic.includes('science') || lowerTopic.includes('physics')) return '🔬';
-    if (lowerTopic.includes('history')) return '📜';
-    if (lowerTopic.includes('art')) return '🎨';
-    if (lowerTopic.includes('music')) return '🎵';
-    if (lowerTopic.includes('computer') || lowerTopic.includes('code')) return '💻';
-    return '🤔';
+    
+    // Animals
+    if (lowerTopic.includes('shark')) return '🦈';
+    if (lowerTopic.includes('whale')) return '🐋';
+    if (lowerTopic.includes('dolphin')) return '🐬';
+    if (lowerTopic.includes('fish') || lowerTopic.includes('ocean') || lowerTopic.includes('sea') || lowerTopic.includes('marine')) return '🐟';
+    if (lowerTopic.includes('dog')) return '🐕';
+    if (lowerTopic.includes('cat')) return '🐱';
+    if (lowerTopic.includes('bird')) return '🐦';
+    if (lowerTopic.includes('elephant')) return '🐘';
+    if (lowerTopic.includes('lion') || lowerTopic.includes('tiger')) return '🦁';
+    if (lowerTopic.includes('bear')) return '🐻';
+    if (lowerTopic.includes('animal') || lowerTopic.includes('wildlife') || lowerTopic.includes('zoo')) return '🦁';
+    if (lowerTopic.includes('dinosaur')) return '🦖';
+    if (lowerTopic.includes('insect') || lowerTopic.includes('bug') || lowerTopic.includes('bee')) return '🐝';
+    if (lowerTopic.includes('snake') || lowerTopic.includes('reptile')) return '🐍';
+    
+    // Science & Nature
+    if (lowerTopic.includes('space') || lowerTopic.includes('planet') || lowerTopic.includes('star') || lowerTopic.includes('galaxy') || lowerTopic.includes('universe')) return '🌌';
+    if (lowerTopic.includes('chemistry') || lowerTopic.includes('chemical')) return '🧪';
+    if (lowerTopic.includes('biology') || lowerTopic.includes('cell') || lowerTopic.includes('dna')) return '🧬';
+    if (lowerTopic.includes('physics') || lowerTopic.includes('quantum')) return '⚛️';
+    if (lowerTopic.includes('science') || lowerTopic.includes('experiment')) return '🔬';
+    if (lowerTopic.includes('math') || lowerTopic.includes('number') || lowerTopic.includes('algebra') || lowerTopic.includes('calculus')) return '🔢';
+    if (lowerTopic.includes('earth') || lowerTopic.includes('geology') || lowerTopic.includes('volcano')) return '🌍';
+    if (lowerTopic.includes('weather') || lowerTopic.includes('climate')) return '🌦️';
+    if (lowerTopic.includes('plant') || lowerTopic.includes('tree') || lowerTopic.includes('flower') || lowerTopic.includes('garden')) return '🌱';
+    
+    // Technology
+    if (lowerTopic.includes('computer') || lowerTopic.includes('code') || lowerTopic.includes('programming') || lowerTopic.includes('software')) return '💻';
+    if (lowerTopic.includes('robot') || lowerTopic.includes('ai') || lowerTopic.includes('artificial intelligence')) return '🤖';
+    if (lowerTopic.includes('phone') || lowerTopic.includes('mobile') || lowerTopic.includes('app')) return '📱';
+    if (lowerTopic.includes('internet') || lowerTopic.includes('web') || lowerTopic.includes('network')) return '🌐';
+    
+    // Arts & Entertainment
+    if (lowerTopic.includes('art') || lowerTopic.includes('paint') || lowerTopic.includes('draw')) return '🎨';
+    if (lowerTopic.includes('music') || lowerTopic.includes('song') || lowerTopic.includes('instrument')) return '🎵';
+    if (lowerTopic.includes('movie') || lowerTopic.includes('film') || lowerTopic.includes('cinema')) return '🎬';
+    if (lowerTopic.includes('game') || lowerTopic.includes('gaming')) return '🎮';
+    if (lowerTopic.includes('book') || lowerTopic.includes('read') || lowerTopic.includes('literature')) return '📚';
+    if (lowerTopic.includes('photo') || lowerTopic.includes('camera')) return '📷';
+    
+    // Social Sciences
+    if (lowerTopic.includes('history') || lowerTopic.includes('ancient') || lowerTopic.includes('civilization')) return '📜';
+    if (lowerTopic.includes('geography') || lowerTopic.includes('country') || lowerTopic.includes('map')) return '🗺️';
+    if (lowerTopic.includes('politic') || lowerTopic.includes('government') || lowerTopic.includes('democracy')) return '🏛️';
+    if (lowerTopic.includes('econom') || lowerTopic.includes('finance') || lowerTopic.includes('money') || lowerTopic.includes('business')) return '💰';
+    if (lowerTopic.includes('psychology') || lowerTopic.includes('mind') || lowerTopic.includes('brain')) return '🧠';
+    if (lowerTopic.includes('language') || lowerTopic.includes('word') || lowerTopic.includes('speak')) return '💬';
+    
+    // Health & Sports
+    if (lowerTopic.includes('health') || lowerTopic.includes('medicine') || lowerTopic.includes('doctor') || lowerTopic.includes('medical')) return '⚕️';
+    if (lowerTopic.includes('food') || lowerTopic.includes('cook') || lowerTopic.includes('recipe') || lowerTopic.includes('nutrition')) return '🍳';
+    if (lowerTopic.includes('sport') || lowerTopic.includes('exercise') || lowerTopic.includes('fitness')) return '⚽';
+    if (lowerTopic.includes('yoga') || lowerTopic.includes('meditation')) return '🧘';
+    
+    // Miscellaneous
+    if (lowerTopic.includes('travel') || lowerTopic.includes('trip') || lowerTopic.includes('vacation')) return '✈️';
+    if (lowerTopic.includes('car') || lowerTopic.includes('vehicle') || lowerTopic.includes('transport')) return '🚗';
+    if (lowerTopic.includes('build') || lowerTopic.includes('architecture') || lowerTopic.includes('house')) return '🏠';
+    if (lowerTopic.includes('fashion') || lowerTopic.includes('cloth') || lowerTopic.includes('style')) return '👗';
+    if (lowerTopic.includes('learn') || lowerTopic.includes('study') || lowerTopic.includes('education') || lowerTopic.includes('school')) return '📖';
+    if (lowerTopic.includes('youtube') || lowerTopic.includes('video')) return '▶️';
+    
+    return '📝';
   };
 
   return (
