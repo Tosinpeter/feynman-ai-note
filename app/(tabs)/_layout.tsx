@@ -1,6 +1,6 @@
 import Colors from "@/constants/colors";
 import { Tabs, useRouter } from "expo-router";
-import { Home, Grid3x3, User, Plus, Mic, Camera, Video, FileText, Edit3, X } from "lucide-react-native";
+import { Home, Grid3x3, User, Plus, Mic, Camera, Video, FileText, Edit3, X, Upload } from "lucide-react-native";
 import React, { useState } from "react";
 import { StyleSheet, TouchableOpacity, Platform, View, Text, Modal, Pressable } from "react-native";
 
@@ -18,7 +18,15 @@ function FloatingActionButton() {
       bgColor: "#FEE2E2",
       route: "/record-audio" 
     },
-
+    { 
+      id: "upload-audio", 
+      title: "Upload Audio", 
+      description: "Upload an audio file to generate notes",
+      icon: Upload,
+      iconColor: "#3B82F6",
+      bgColor: "#DBEAFE",
+      route: "/upload-audio" 
+    },
     { 
       id: "capture", 
       title: "Capture Text or Image", 
