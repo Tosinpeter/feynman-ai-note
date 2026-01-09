@@ -108,16 +108,21 @@ export default function UploadPDFScreen() {
     console.log('Attempting to extract text from PDF using pdf.js...');
     
     try {
-      if (Platform.OS === 'web') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-      }
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
       
       const response = await fetch(uri);
       const arrayBuffer = await response.arrayBuffer();
       
       console.log('PDF loaded, size:', arrayBuffer.byteLength);
       
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const loadingTask = pdfjsLib.getDocument({
+        data: arrayBuffer,
+        useWorkerFetch: false,
+        isEvalSupported: false,
+        useSystemFonts: true,
+      } as any);
+      
+      const pdf = await loadingTask.promise;
       console.log('PDF parsed, pages:', pdf.numPages);
       
       let fullText = '';
