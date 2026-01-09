@@ -23,6 +23,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import Colors from '@/constants/colors';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { useExplanations } from '@/contexts/explanations';
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface SelectedFile {
   uri: string;
@@ -104,67 +105,57 @@ export default function UploadPDFScreen() {
   };
 
   const extractTextFromPDF = async (uri: string): Promise<string> => {
-    console.log('Attempting to extract text from PDF...');
+    console.log('Attempting to extract text from PDF using pdf.js...');
     
-    if (Platform.OS === 'web') {
-      try {
-        const response = await fetch(uri);
-        const arrayBuffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        
-        let textContent = '';
-        let inTextObject = false;
-        let textBuffer = '';
-        
-        for (let i = 0; i < bytes.length - 1; i++) {
-          const char = String.fromCharCode(bytes[i]);
-          
-          if (i < bytes.length - 2) {
-            const twoChars = char + String.fromCharCode(bytes[i + 1]);
-            if (twoChars === 'BT') {
-              inTextObject = true;
-              continue;
-            }
-            if (twoChars === 'ET') {
-              inTextObject = false;
-              if (textBuffer.trim()) {
-                textContent += textBuffer.trim() + ' ';
-              }
-              textBuffer = '';
-              continue;
-            }
-          }
-          
-          if (inTextObject) {
-            if (char === '(' || char === ')') continue;
-            if (bytes[i] >= 32 && bytes[i] <= 126) {
-              textBuffer += char;
-            } else if (bytes[i] === 10 || bytes[i] === 13) {
-              textBuffer += ' ';
-            }
-          }
-        }
-        
-        const cleanedText = textContent
-          .replace(/\s+/g, ' ')
-          .replace(/[^\x20-\x7E\n]/g, '')
-          .trim();
-        
-        console.log('Extracted text length:', cleanedText.length);
-        
-        if (cleanedText.length > 50) {
-          return cleanedText;
-        }
-        
-        console.log('Basic extraction yielded limited text, using file info approach');
-        return '';
-      } catch (e) {
-        console.error('PDF text extraction error:', e);
-        return '';
+    try {
+      if (Platform.OS === 'web') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
       }
+      
+      const response = await fetch(uri);
+      const arrayBuffer = await response.arrayBuffer();
+      
+      console.log('PDF loaded, size:', arrayBuffer.byteLength);
+      
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      console.log('PDF parsed, pages:', pdf.numPages);
+      
+      let fullText = '';
+      
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        try {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          
+          const pageText = textContent.items
+            .map((item: any) => {
+              if ('str' in item) {
+                return item.str;
+              }
+              return '';
+            })
+            .join(' ');
+          
+          fullText += pageText + '\n\n';
+          console.log(`Page ${pageNum} extracted, chars:`, pageText.length);
+        } catch (pageError) {
+          console.error(`Error extracting page ${pageNum}:`, pageError);
+        }
+      }
+      
+      const cleanedText = fullText
+        .replace(/\s+/g, ' ')
+        .replace(/\n\s*\n/g, '\n\n')
+        .trim();
+      
+      console.log('Total extracted text length:', cleanedText.length);
+      console.log('Text preview:', cleanedText.substring(0, 500));
+      
+      return cleanedText;
+    } catch (e) {
+      console.error('PDF text extraction error:', e);
+      return '';
     }
-    
-    return '';
   };
 
   const handleGenerateNotes = async () => {
