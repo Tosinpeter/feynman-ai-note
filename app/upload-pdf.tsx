@@ -23,7 +23,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import Colors from '@/constants/colors';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { useExplanations } from '@/contexts/explanations';
-import * as pdfjsLib from 'pdfjs-dist';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 interface SelectedFile {
   uri: string;
@@ -108,7 +108,10 @@ export default function UploadPDFScreen() {
     console.log('Attempting to extract text from PDF using pdf.js...');
     
     try {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      // Configure PDF.js to work without a worker (runs on main thread)
+      if (typeof window !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+      }
       
       const response = await fetch(uri);
       const arrayBuffer = await response.arrayBuffer();
@@ -117,10 +120,9 @@ export default function UploadPDFScreen() {
       
       const loadingTask = pdfjsLib.getDocument({
         data: arrayBuffer,
-        useWorkerFetch: false,
-        isEvalSupported: false,
-        useSystemFonts: true,
-      } as any);
+        disableAutoFetch: true,
+        disableStream: true,
+      });
       
       const pdf = await loadingTask.promise;
       console.log('PDF parsed, pages:', pdf.numPages);
