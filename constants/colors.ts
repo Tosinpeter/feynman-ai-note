@@ -1,7 +1,8 @@
 const Colors = {
-  beige: "#F5E6D3",
+  beige: "#f9e2c2",
   cream: "#FFF8E7",
   orange: "#E67E22",
+  black: "#000000",
   darkBrown: "#4A3728",
   coral: "#FF9A76",
   lightCoral: "#FFBFA9",
@@ -19,7 +20,7 @@ const Colors = {
   navDark: "#374151",
   navInactive: "#9CA3AF",
   text: "#1F2937",
-  
+
   gradientCoralStart: "#FF6B6B",
   gradientCoralEnd: "#FFA07A",
   gradientPurpleStart: "#8B5CF6",

@@ -21,29 +21,23 @@ const RACCOON_MASCOT = "https://r2-pub.rork.com/generated-images/97b402cd-3c09-4
 
 interface SubTopic {
   title: string;
-  emoji: string;
   description: string;
 }
 
 interface TopicCategory {
   categoryTitle: string;
-  categoryEmoji: string;
   subtopics: SubTopic[];
 }
 
 interface GeneratedTopics {
-  mainEmoji: string;
   categories: TopicCategory[];
 }
 
 const subtopicsSchema = z.object({
-  mainEmoji: z.string().describe("A single emoji that best represents the main topic"),
   categories: z.array(z.object({
     categoryTitle: z.string().describe("Category name like 'Types of X' or 'X Behavior'"),
-    categoryEmoji: z.string().describe("Two emojis for the category"),
     subtopics: z.array(z.object({
       title: z.string().describe("Subtopic title"),
-      emoji: z.string().describe("One or two emojis for this subtopic"),
       description: z.string().describe("Brief 10-15 word description"),
     })).min(3).max(4),
   })).min(2).max(3),
@@ -74,24 +68,21 @@ export default function TopicPickerScreen() {
       } catch (error) {
         console.error("Error generating subtopics:", error);
         setGeneratedTopics({
-          mainEmoji: "📚",
           categories: [
             {
               categoryTitle: `Types of ${topic}`,
-              categoryEmoji: "🔍",
               subtopics: [
-                { title: `Introduction to ${topic}`, emoji: "📖", description: `Basic overview and fundamentals of ${topic}` },
-                { title: `${topic} Fundamentals`, emoji: "🎯", description: `Core concepts and key principles` },
-                { title: `Advanced ${topic}`, emoji: "🚀", description: `In-depth exploration of complex topics` },
+                { title: `Introduction to ${topic}`, description: `Basic overview and fundamentals of ${topic}` },
+                { title: `${topic} Fundamentals`, description: `Core concepts and key principles` },
+                { title: `Advanced ${topic}`, description: `In-depth exploration of complex topics` },
               ],
             },
             {
               categoryTitle: `${topic} Applications`,
-              categoryEmoji: "💡",
               subtopics: [
-                { title: "Real-world Examples", emoji: "🌍", description: `Practical applications in everyday life` },
-                { title: "Case Studies", emoji: "📊", description: `Detailed analysis of specific examples` },
-                { title: "Future Trends", emoji: "🔮", description: `What's next in this field` },
+                { title: "Real-world Examples", description: `Practical applications in everyday life` },
+                { title: "Case Studies", description: `Detailed analysis of specific examples` },
+                { title: "Future Trends", description: `What's next in this field` },
               ],
             },
           ],
@@ -148,8 +139,6 @@ export default function TopicPickerScreen() {
     );
   }
 
-  const mainEmoji = generatedTopics?.mainEmoji || "📚";
-
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -180,10 +169,10 @@ export default function TopicPickerScreen() {
             </View>
 
             <Text style={styles.title}>
-              Yo, pick a topic in the {topic} {mainEmoji} zone to kick things off!
+              Pick a topic in {topic} to start learning!
             </Text>
 
-            <Text style={styles.sectionTitle}>{topic} {mainEmoji}</Text>
+            <Text style={styles.sectionTitle}>{topic}</Text>
 
             <TouchableOpacity 
               style={styles.mainTopicCard}
@@ -191,8 +180,8 @@ export default function TopicPickerScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.topicCardContent}>
-                <Text style={styles.topicCardTitle}>{topic} {mainEmoji}</Text>
-                <Text style={styles.topicCardDescription}>All topics in {topic} {mainEmoji}</Text>
+                <Text style={styles.topicCardTitle}>{topic}</Text>
+                <Text style={styles.topicCardDescription}>Learn everything about {topic}</Text>
               </View>
               <ChevronRight size={20} color={Colors.grayText} />
             </TouchableOpacity>
@@ -200,7 +189,7 @@ export default function TopicPickerScreen() {
             {generatedTopics?.categories.map((category, categoryIndex) => (
               <View key={categoryIndex}>
                 <Text style={styles.categoryTitle}>
-                  {category.categoryTitle} {mainEmoji}{category.categoryEmoji}
+                  {category.categoryTitle}
                 </Text>
                 
                 {category.subtopics.map((subtopic, subtopicIndex) => (
@@ -211,7 +200,7 @@ export default function TopicPickerScreen() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.topicCardContent}>
-                      <Text style={styles.subtopicTitle}>{subtopic.title} {subtopic.emoji}</Text>
+                      <Text style={styles.subtopicTitle}>{subtopic.title}</Text>
                       <Text style={styles.subtopicDescription} numberOfLines={1}>
                         {subtopic.description}
                       </Text>

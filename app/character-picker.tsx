@@ -224,8 +224,8 @@ const styles = StyleSheet.create({
   },
   characterCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 16,
+    padding: 12,
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
@@ -274,16 +274,16 @@ const styles = StyleSheet.create({
     color: Colors.grayText,
   },
   characterImageContainer: {
-    width: 100,
-    height: 100,
+    width: 70,
+    height: 70,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 12,
   },
   characterImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
+    width: 70,
+    height: 70,
+    borderRadius: 10,
   },
   backButton: {
     backgroundColor: Colors.darkBrown,

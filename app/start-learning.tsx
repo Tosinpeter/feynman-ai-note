@@ -14,17 +14,19 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
+import { useTranslation } from "react-i18next";
 
 const RACCOON_MASCOT = "https://r2-pub.rork.com/generated-images/97b402cd-3c09-435e-803e-c6c62955985a.png";
 
 export default function StartLearningScreen() {
   const router = useRouter();
   const [topic, setTopic] = useState("");
+  const { t } = useTranslation();
 
   const handleSubmitTopic = () => {
     const trimmedTopic = topic.trim();
     if (!trimmedTopic) {
-      Alert.alert("Enter a Topic", "Please enter a topic you want to learn about.");
+      Alert.alert(t('startLearning.enterTopic'), t('startLearning.enterTopicMessage'));
       return;
     }
 
@@ -72,7 +74,7 @@ export default function StartLearningScreen() {
             </View>
 
             <Text style={styles.title}>
-              What topic do you{"\n"}want to explore{"\n"}today?
+              {t('startLearning.title')}
             </Text>
           </View>
 
@@ -81,7 +83,7 @@ export default function StartLearningScreen() {
               style={styles.fromNotesContainer}
               onPress={handleGoToLibrary}
             >
-              <Text style={styles.fromNotesText}>Or from your notes</Text>
+              <Text style={styles.fromNotesText}>{t('startLearning.orFromNotes')}</Text>
               <ArrowRight size={18} color={Colors.orange} />
               <View style={styles.notesIconContainer}>
                 <FileText size={22} color={Colors.gradientPurpleStart} />
@@ -93,7 +95,7 @@ export default function StartLearningScreen() {
                 <Sparkles size={22} color={Colors.gradientPurpleStart} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Enter any topic"
+                  placeholder={t('startLearning.placeholder')}
                   placeholderTextColor={Colors.grayText}
                   value={topic}
                   onChangeText={setTopic}

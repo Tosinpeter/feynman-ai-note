@@ -23,6 +23,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 interface Category {
   id: string;
@@ -31,40 +32,44 @@ interface Category {
   color: string;
 }
 
-const categories: Category[] = [
-  {
-    id: "science",
-    name: "Science",
-    icon: <Brain size={28} color={Colors.white} />,
-    color: Colors.coral,
-  },
-  {
-    id: "math",
-    name: "Math",
-    icon: <Calculator size={28} color={Colors.white} />,
-    color: Colors.orange,
-  },
-  {
-    id: "history",
-    name: "History",
-    icon: <Globe size={28} color={Colors.white} />,
-    color: Colors.darkBrown,
-  },
-  {
-    id: "technology",
-    name: "Technology",
-    icon: <Lightbulb size={28} color={Colors.white} />,
-    color: Colors.teal,
-  },
-];
+function getCategoriesWithTranslation(t: any): Category[] {
+  return [
+    {
+      id: "science",
+      name: t('home.science'),
+      icon: <Brain size={28} color={Colors.white} />,
+      color: Colors.coral,
+    },
+    {
+      id: "math",
+      name: t('home.math'),
+      icon: <Calculator size={28} color={Colors.white} />,
+      color: Colors.orange,
+    },
+    {
+      id: "history",
+      name: t('home.history'),
+      icon: <Globe size={28} color={Colors.white} />,
+      color: Colors.darkBrown,
+    },
+    {
+      id: "technology",
+      name: t('home.technology'),
+      icon: <Lightbulb size={28} color={Colors.white} />,
+      color: Colors.teal,
+    },
+  ];
+}
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  // const { user } = useAuth();
   const { getRecentExplanations } = useExplanations();
   const [searchQuery, setSearchQuery] = useState("");
+  const { t } = useTranslation();
 
   const recentExplanations = getRecentExplanations();
+  const categories = getCategoriesWithTranslation(t);
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -84,8 +89,8 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hello, {user?.name || "there"}!</Text>
-            <Text style={styles.subtitle}>What do you want to learn today?</Text>
+            <Text style={styles.greeting}>{t('home.hello')}, {"there"}!</Text>
+            <Text style={styles.subtitle}>{t('home.subtitle')}</Text>
           </View>
           <TouchableOpacity
             onPress={() => router.push("/settings")}
@@ -103,7 +108,7 @@ export default function HomeScreen() {
           <View style={styles.searchContainer}>
             <TextInput
               style={styles.searchInput}
-              placeholder="What do you want to learn about?"
+              placeholder={t('home.searchPlaceholder')}
               placeholderTextColor={Colors.grayText}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -115,7 +120,7 @@ export default function HomeScreen() {
               onPress={handleSearch}
               disabled={!searchQuery.trim()}
             >
-              <Text style={styles.searchButtonText}>Ask</Text>
+              <Text style={styles.searchButtonText}>{t('home.askButton')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -128,7 +133,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Popular Topics</Text>
+            <Text style={styles.sectionTitle}>{t('home.popularTopics')}</Text>
             <View style={styles.categoriesGrid}>
               {categories.map((category) => (
                 <TouchableOpacity
@@ -147,9 +152,9 @@ export default function HomeScreen() {
           {recentExplanations.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Recent</Text>
+                <Text style={styles.sectionTitle}>{t('home.recent')}</Text>
                 <TouchableOpacity onPress={() => router.push("/saved")}>
-                  <Text style={styles.seeAllText}>See all</Text>
+                  <Text style={styles.seeAllText}>{t('home.seeAll')}</Text>
                 </TouchableOpacity>
               </View>
               {recentExplanations.map((exp) => (
@@ -268,8 +273,7 @@ const styles = StyleSheet.create({
       },
       web: {
         boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-        outlineStyle: "none",
-      },
+      } as any,
     }),
   },
   searchButton: {

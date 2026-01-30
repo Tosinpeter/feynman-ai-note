@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -7,23 +7,35 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, Stack } from 'expo-router';
-import { 
-  FileText, 
-  X, 
-  CheckCircle2, 
+  Animated,
+  Dimensions,
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter, Stack } from "expo-router";
+import {
+  FileText,
+  X,
+  CheckCircle2,
   File,
   AlertCircle,
   Upload,
   Sparkles,
-} from 'lucide-react-native';
-import * as DocumentPicker from 'expo-document-picker';
-import Colors from '@/constants/colors';
-import { generateText } from '@rork-ai/toolkit-sdk';
-import { useExplanations } from '@/contexts/explanations';
-import * as pdfjsLib from 'pdfjs-dist';
+  ArrowLeft,
+  Trash2,
+} from "lucide-react-native";
+import * as DocumentPicker from "expo-document-picker";
+import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
+import { generateText } from "@rork-ai/toolkit-sdk";
+import { useExplanations } from "@/contexts/explanations";
+import "@/lib/pdfjs-polyfills";
+import * as pdfjsLib from "pdfjs-dist";
+import { useTranslation } from "react-i18next";
+import LanguagePicker from "@/components/LanguagePicker";
+import { GenerateLanguage } from "@/constants/languageOptions";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface SelectedFile {
   uri: string;
@@ -35,11 +47,34 @@ interface SelectedFile {
 export default function UploadPDFScreen() {
   const router = useRouter();
   const { addExplanation } = useExplanations();
+  const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [processingStep, setProcessingStep] = useState('');
+  const [processingStep, setProcessingStep] = useState("");
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [selectedLanguage, setSelectedLanguage] = useState<GenerateLanguage>("auto");
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
+
+  // Animation for upload area
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  const animatePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const animatePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const pickPDFFile = async () => {
     try {
@@ -47,120 +82,131 @@ export default function UploadPDFScreen() {
       setIsLoading(true);
 
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf'],
+        type: "application/pdf",
         copyToCacheDirectory: true,
+        multiple: false,
       });
 
-      console.log('Document picker result:', result);
+      console.log("Document picker result:", JSON.stringify(result, null, 2));
 
       if (result.canceled) {
-        console.log('User cancelled file picker');
+        console.log("User cancelled file picker");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!result.assets || result.assets.length === 0) {
+        setError("No file selected");
         setIsLoading(false);
         return;
       }
 
       const file = result.assets[0];
-      
-      if (!file) {
-        setError('No file selected');
+
+      if (!file || !file.uri) {
+        setError("Failed to get file information");
         setIsLoading(false);
         return;
       }
 
-      const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-      
-      if (fileExtension !== 'pdf') {
-        setError('Please select a PDF file');
+      // Validate file extension
+      const fileExtension = file.name?.split(".").pop()?.toLowerCase() || "";
+      if (fileExtension !== "pdf") {
+        setError("Please select a PDF file");
         setIsLoading(false);
         return;
       }
 
       setSelectedFile({
         uri: file.uri,
-        name: file.name,
+        name: file.name || "document.pdf",
         size: file.size || 0,
-        mimeType: file.mimeType || 'application/pdf',
+        mimeType: file.mimeType || "application/pdf",
       });
 
-      console.log('PDF selected:', file.name, file.uri);
+      console.log("PDF selected:", file.name, file.uri);
       setIsLoading(false);
-    } catch (err) {
-      console.error('Error picking file:', err);
-      setError('Failed to pick file. Please try again.');
+    } catch (err: any) {
+      console.error("Error picking file:", err);
+      setError(err.message || "Failed to pick file. Please try again.");
       setIsLoading(false);
     }
   };
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
     setError(null);
+    setProcessingProgress(0);
   };
 
   const extractTextFromPDF = async (uri: string): Promise<string> => {
-    console.log('Attempting to extract text from PDF using pdf.js...');
-    
+    console.log("Attempting to extract text from PDF...");
+
     try {
-      // Disable worker to run on main thread (avoids worker loading issues)
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-      
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+
       const response = await fetch(uri);
       const arrayBuffer = await response.arrayBuffer();
-      
-      console.log('PDF loaded, size:', arrayBuffer.byteLength);
-      
+
+      console.log("PDF loaded, size:", arrayBuffer.byteLength);
+
       const loadingTask = pdfjsLib.getDocument({
         data: arrayBuffer,
         useWorkerFetch: false,
         isEvalSupported: false,
         useSystemFonts: true,
       });
-      
+
       const pdf = await loadingTask.promise;
-      console.log('PDF parsed, pages:', pdf.numPages);
-      
-      let fullText = '';
-      
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      console.log("PDF parsed, pages:", pdf.numPages);
+
+      let fullText = "";
+      const totalPages = pdf.numPages;
+
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
         try {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          
+
           const pageText = textContent.items
             .map((item: any) => {
-              if ('str' in item) {
+              if ("str" in item) {
                 return item.str;
               }
-              return '';
+              return "";
             })
-            .join(' ');
+            .join(" ");
+
+          fullText += pageText + "\n\n";
           
-          fullText += pageText + '\n\n';
-          console.log(`Page ${pageNum} extracted, chars:`, pageText.length);
+          // Update progress
+          const progress = (pageNum / totalPages) * 50; // First 50% for extraction
+          setProcessingProgress(progress);
+          
+          console.log(`Page ${pageNum}/${totalPages} extracted`);
         } catch (pageError) {
           console.error(`Error extracting page ${pageNum}:`, pageError);
         }
       }
-      
+
       const cleanedText = fullText
-        .replace(/\s+/g, ' ')
-        .replace(/\n\s*\n/g, '\n\n')
+        .replace(/\s+/g, " ")
+        .replace(/\n\s*\n/g, "\n\n")
         .trim();
-      
-      console.log('Total extracted text length:', cleanedText.length);
-      console.log('Text preview:', cleanedText.substring(0, 500));
-      
+
+      console.log("Total extracted text length:", cleanedText.length);
       return cleanedText;
     } catch (e) {
-      console.error('PDF text extraction error:', e);
-      return '';
+      console.error("PDF text extraction error:", e);
+      return "";
     }
   };
 
@@ -169,28 +215,27 @@ export default function UploadPDFScreen() {
 
     setIsProcessing(true);
     setError(null);
-    setProcessingStep('Reading PDF file...');
-    
+    setProcessingProgress(0);
+    setProcessingStep("Reading PDF file...");
+
     try {
-      console.log('Processing PDF:', selectedFile.name);
-      
-      let extractedText = '';
-      
-      setProcessingStep('Extracting text from PDF...');
-      extractedText = await extractTextFromPDF(selectedFile.uri);
-      
-      console.log('Extracted text preview:', extractedText.substring(0, 200));
-      
-      setProcessingStep('Generating notes with AI...');
-      
-      let generatedContent = '';
-      let topicName = selectedFile.name.replace('.pdf', '');
-      
+      console.log("Processing PDF:", selectedFile.name);
+
+      setProcessingStep("Extracting text content...");
+      const extractedText = await extractTextFromPDF(selectedFile.uri);
+
+      setProcessingStep("Generating smart notes...");
+      setProcessingProgress(60);
+
+      let generatedContent = "";
+      let topicName = selectedFile.name.replace(".pdf", "").replace(/_/g, " ").replace(/-/g, " ");
+
       if (extractedText.length > 100) {
-        const truncatedText = extractedText.length > 15000 
-          ? extractedText.substring(0, 15000) + '...[content truncated]'
-          : extractedText;
-        
+        const truncatedText =
+          extractedText.length > 15000
+            ? extractedText.substring(0, 15000) + "...[content truncated]"
+            : extractedText;
+
         const prompt = `You are an AI learning assistant. A user has uploaded a PDF document and here is the extracted text content:
 
 "${truncatedText}"
@@ -231,11 +276,11 @@ REVIEW QUESTIONS:
 2. [Question 2]
 3. [Question 3]`;
 
-        console.log('Sending to AI for note generation...');
+        setProcessingProgress(75);
         generatedContent = await generateText({
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: "user", content: prompt }],
         });
-        
+
         const topicMatch = generatedContent.match(/MAIN TOPIC:\s*([^\n]+)/);
         if (topicMatch && topicMatch[1].trim()) {
           topicName = topicMatch[1].trim();
@@ -250,147 +295,126 @@ Based on the file name "${selectedFile.name}", create a template for study notes
 Provide a structured template with:
 1. A suggested topic name based on the filename
 2. Empty sections for: Summary, Key Concepts, Notes, Important Terms, and Review Questions
-3. Tips for how to manually add notes from the document
-
-Format your response as follows:
-MAIN TOPIC:
-[Suggested topic based on filename - keep it concise]
-
-SUMMARY:
-[Template: Add a 2-3 sentence summary of the document here]
-
-KEY CONCEPTS:
-- [Add key concept 1]
-- [Add key concept 2]
-- [Add key concept 3]
-
-NOTES:
-[Add your notes from the PDF document here]
-
-IMPORTANT TERMS:
-- [Term]: [Definition]
-
-REVIEW QUESTIONS:
-1. [Add review question 1]
-2. [Add review question 2]
-
----
-💡 Tips for completing these notes:
-• Read through the PDF and identify the main topic
-• Note down key concepts and definitions
-• Write a brief summary in your own words
-• Create questions to test your understanding`;
+3. Tips for how to manually add notes from the document`;
 
         generatedContent = await generateText({
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: "user", content: prompt }],
         });
-        
+
         const topicMatch = generatedContent.match(/MAIN TOPIC:\s*([^\n]+)/);
         if (topicMatch && topicMatch[1].trim()) {
           topicName = topicMatch[1].trim();
         }
       }
 
-      console.log('Notes generated successfully');
-      console.log('Topic name:', topicName);
-      
-      addExplanation(topicName, generatedContent);
-      
-      setIsProcessing(false);
-      router.replace('/(tabs)/library');
-      
+      setProcessingProgress(100);
+      setProcessingStep("Saving notes...");
+
+      console.log("Notes generated successfully");
+      await addExplanation(topicName, generatedContent);
+
+      setTimeout(() => {
+        setIsProcessing(false);
+        router.replace("/(tabs)/library");
+      }, 500);
     } catch (err) {
-      console.error('Error processing PDF:', err);
-      setError('Failed to process PDF. Please try again.');
+      console.error("Error processing PDF:", err);
+      setError("Failed to process PDF. Please try again.");
       setIsProcessing(false);
     }
   };
 
   const handleClose = () => {
-    router.back();
+    if (isProcessing) {
+      Alert.alert(
+        "Cancel Processing?",
+        "Are you sure you want to cancel? The current progress will be lost.",
+        [
+          { text: "Continue", style: "cancel" },
+          { text: "Cancel", style: "destructive", onPress: () => router.back() },
+        ]
+      );
+    } else {
+      router.back();
+    }
   };
 
   return (
     <>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           headerShown: false,
-          presentation: 'modal',
-        }} 
+          presentation: "modal",
+        }}
       />
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.closeButton} 
+          <TouchableOpacity
+            style={styles.headerButton}
             onPress={handleClose}
             activeOpacity={0.7}
-            disabled={isProcessing}
           >
-            <X size={24} color="#1F2937" strokeWidth={2} />
+            <ArrowLeft size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Upload PDF</Text>
-          <View style={styles.placeholder} />
+          <Text style={styles.headerTitle}>Generate from PDF</Text>
+          <View style={styles.headerButton} />
         </View>
 
-        <ScrollView 
+        <View style={styles.divider} />
+
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.iconContainer}>
-            <View style={styles.iconBackground}>
-              <FileText size={48} color="#F97316" strokeWidth={1.5} />
-            </View>
-          </View>
-
-          <Text style={styles.title}>Upload PDF Document</Text>
-          <Text style={styles.subtitle}>
-            Select a PDF file to generate comprehensive study notes with AI
-          </Text>
-
-          <View style={styles.formatsContainer}>
-            <Text style={styles.formatsLabel}>Supported format:</Text>
-            <Text style={styles.formatsText}>PDF documents (.pdf)</Text>
-          </View>
-
+          {/* Upload Area */}
           {!selectedFile ? (
-            <TouchableOpacity
-              style={styles.uploadArea}
-              onPress={pickPDFFile}
-              activeOpacity={0.7}
-              disabled={isLoading || isProcessing}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="large" color="#F97316" />
-              ) : (
-                <>
-                  <View style={styles.uploadIconContainer}>
-                    <Upload size={32} color="#F97316" strokeWidth={2} />
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <TouchableOpacity
+                style={styles.uploadArea}
+                onPress={pickPDFFile}
+                onPressIn={animatePressIn}
+                onPressOut={animatePressOut}
+                activeOpacity={0.9}
+                disabled={isLoading || isProcessing}
+              >
+                {isLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={Colors.text} />
+                    <Text style={styles.loadingText}>Opening file picker...</Text>
                   </View>
-                  <Text style={styles.uploadTitle}>Tap to select PDF file</Text>
-                  <Text style={styles.uploadSubtitle}>
-                    Browse your device for PDF documents
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                ) : (
+                  <>
+                    <View style={styles.pdfIconContainer}>
+                      <FileText size={28} color={Colors.text} strokeWidth={1.5} />
+                      <Text style={styles.pdfLabel}>PDF</Text>
+                    </View>
+                    <Text style={styles.uploadTitle}>Press to upload PDF</Text>
+                    <Text style={styles.uploadSubtitle}>
+                      (Supported formats: pdf max size 30MB)
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
           ) : (
-            <View style={styles.selectedFileContainer}>
-              <View style={styles.selectedFileHeader}>
-                <CheckCircle2 size={20} color="#10B981" strokeWidth={2} />
-                <Text style={styles.selectedFileLabel}>File selected</Text>
+            <View style={styles.selectedFileCard}>
+              <View style={styles.fileHeader}>
+                <CheckCircle2 size={20} color="#22C55E" strokeWidth={2} />
+                <Text style={styles.fileHeaderText}>File Selected</Text>
               </View>
-              
-              <View style={styles.fileCard}>
-                <View style={styles.fileIconContainer}>
-                  <File size={24} color="#F97316" strokeWidth={2} />
+
+              <View style={styles.fileInfo}>
+                <View style={styles.fileIconWrapper}>
+                  <File size={28} color={Colors.text} strokeWidth={1.5} />
                 </View>
-                <View style={styles.fileInfo}>
+                <View style={styles.fileDetails}>
                   <Text style={styles.fileName} numberOfLines={1}>
                     {selectedFile.name}
                   </Text>
                   <Text style={styles.fileSize}>
-                    {formatFileSize(selectedFile.size)}
+                    {formatFileSize(selectedFile.size)} • PDF Document
                   </Text>
                 </View>
                 {!isProcessing && (
@@ -399,48 +423,63 @@ REVIEW QUESTIONS:
                     onPress={handleRemoveFile}
                     activeOpacity={0.7}
                   >
-                    <X size={20} color="#6B7280" strokeWidth={2} />
+                    <Trash2 size={18} color="#EF4444" />
                   </TouchableOpacity>
                 )}
               </View>
 
               {!isProcessing && (
                 <TouchableOpacity
-                  style={styles.changeFileButton}
+                  style={styles.changeButton}
                   onPress={pickPDFFile}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.changeFileText}>Choose different file</Text>
+                  <Text style={styles.changeButtonText}>Choose a different file</Text>
                 </TouchableOpacity>
               )}
             </View>
           )}
 
+          {/* Topic Generate Language Section */}
+          <LanguagePicker
+            selectedLanguage={selectedLanguage}
+            onSelectLanguage={setSelectedLanguage}
+            showModal={languageModalVisible}
+            onOpenModal={() => setLanguageModalVisible(true)}
+            onCloseModal={() => setLanguageModalVisible(false)}
+          />
+
+          {/* Processing State */}
           {isProcessing && (
-            <View style={styles.processingContainer}>
-              <ActivityIndicator size="small" color="#F97316" />
-              <Text style={styles.processingText}>{processingStep}</Text>
+            <View style={styles.processingCard}>
+              <View style={styles.processingHeader}>
+                <ActivityIndicator size="small" color={Colors.text} />
+                <Text style={styles.processingTitle}>{processingStep}</Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${processingProgress}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {Math.round(processingProgress)}% complete
+              </Text>
             </View>
           )}
 
+          {/* Error State */}
           {error && (
-            <View style={styles.errorContainer}>
-              <AlertCircle size={18} color="#EF4444" strokeWidth={2} />
+            <View style={styles.errorCard}>
+              <AlertCircle size={20} color="#EF4444" strokeWidth={2} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>📚 How it works</Text>
-            <Text style={styles.infoText}>
-              1. Select a PDF document from your device{'\n'}
-              2. AI will extract and analyze the content{'\n'}
-              3. Comprehensive study notes will be generated{'\n'}
-              4. Notes are saved to your library
-            </Text>
-          </View>
         </ScrollView>
 
+        {/* Footer Button */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={[
@@ -459,11 +498,12 @@ REVIEW QUESTIONS:
             ) : (
               <>
                 <Sparkles size={20} color="#FFFFFF" strokeWidth={2} />
-                <Text style={styles.generateButtonText}>Generate Notes</Text>
+                <Text style={styles.generateButtonText}>Generate Topic</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
+
       </SafeAreaView>
     </>
   );
@@ -472,280 +512,345 @@ REVIEW QUESTIONS:
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.white,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
-  closeButton: {
+  headerButton: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontFamily: Fonts.SemiBold,
+    color: Colors.text,
   },
-  placeholder: {
-    width: 40,
+  divider: {
+    height: 1,
+    backgroundColor: "#E5E7EB",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingHorizontal: 20,
+    paddingTop: 24,
     paddingBottom: 24,
   },
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  iconBackground: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#FED7AA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold' as const,
-    color: '#1F2937',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 16,
-  },
-  formatsContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  formatsLabel: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginBottom: 4,
-  },
-  formatsText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500' as const,
-  },
   uploadArea: {
-    backgroundColor: Colors.white,
-    borderWidth: 2,
-    borderColor: '#FDBA74',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    paddingVertical: 48,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingVertical: 32,
     paddingHorizontal: 24,
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-      web: {
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-      },
-    }),
+    alignItems: "center",
+    marginBottom: 32,
+    borderBottomWidth: 3,
+    borderBottomColor: "#1F2937",
   },
-  uploadIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFF7ED',
-    justifyContent: 'center',
-    alignItems: 'center',
+  loadingContainer: {
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: Fonts.Medium,
+    color: Colors.grayText,
+  },
+  pdfIconContainer: {
+    alignItems: "center",
     marginBottom: 16,
+  },
+  pdfLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.Medium,
+    color: Colors.text,
+    marginTop: 2,
   },
   uploadTitle: {
     fontSize: 18,
-    fontWeight: '600' as const,
-    color: '#1F2937',
+    fontFamily: Fonts.SemiBold,
+    color: Colors.text,
     marginBottom: 8,
   },
   uploadSubtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    fontFamily: Fonts.Regular,
+    color: Colors.grayText,
   },
-  selectedFileContainer: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
+  selectedFileCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
     padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-      web: {
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-      },
-    }),
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderBottomWidth: 3,
+    borderBottomColor: "#1F2937",
   },
-  selectedFileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  fileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 16,
   },
-  selectedFileLabel: {
+  fileHeaderText: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#10B981',
+    fontFamily: Fonts.SemiBold,
+    color: "#22C55E",
   },
-  fileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
+  fileInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.white,
     borderRadius: 12,
     padding: 12,
-    marginBottom: 12,
   },
-  fileIconContainer: {
+  fileIconWrapper: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#FED7AA',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
-  fileInfo: {
+  fileDetails: {
     flex: 1,
   },
   fileName: {
-    fontSize: 16,
-    fontWeight: '500' as const,
-    color: '#1F2937',
+    fontSize: 15,
+    fontFamily: Fonts.SemiBold,
+    color: Colors.text,
     marginBottom: 4,
   },
   fileSize: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
+    fontFamily: Fonts.Regular,
+    color: Colors.grayText,
   },
   removeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  changeFileButton: {
-    alignItems: 'center',
-    paddingVertical: 8,
+  changeButton: {
+    alignItems: "center",
+    paddingTop: 16,
   },
-  changeFileText: {
+  changeButtonText: {
     fontSize: 14,
-    fontWeight: '500' as const,
-    color: '#F97316',
+    fontFamily: Fonts.Medium,
+    color: Colors.text,
   },
-  processingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  // Language Section
+  languageSection: {
+    marginBottom: 24,
+  },
+  languageLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  languageLabelIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  languageLabel: {
+    fontSize: 16,
+    fontFamily: Fonts.SemiBold,
+    color: Colors.text,
+  },
+  languageSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 3,
+    borderBottomColor: "#1F2937",
+  },
+  languageEmoji: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  languageName: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: Fonts.Regular,
+    color: Colors.text,
+  },
+  languageChevron: {
+    marginLeft: 8,
+  },
+  // Processing Card
+  processingCard: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 24,
+  },
+  processingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
-    marginTop: 16,
+    marginBottom: 16,
+  },
+  processingTitle: {
+    fontSize: 15,
+    fontFamily: Fonts.SemiBold,
+    color: Colors.text,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#1F2937",
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 13,
+    fontFamily: Fonts.Medium,
+    color: Colors.text,
+    textAlign: "center",
+  },
+  errorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
     padding: 16,
-    backgroundColor: '#FFF7ED',
-    borderRadius: 12,
-  },
-  processingText: {
-    fontSize: 14,
-    color: '#F97316',
-    fontWeight: '500' as const,
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 16,
-    gap: 8,
+    marginBottom: 24,
+    gap: 12,
   },
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: '#EF4444',
+    fontFamily: Fonts.Medium,
+    color: "#EF4444",
   },
-  infoCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 24,
+  footer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  generateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1F2937",
+    paddingVertical: 18,
+    borderRadius: 12,
+    gap: 10,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
         shadowRadius: 8,
       },
       android: {
-        elevation: 2,
-      },
-      web: {
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        elevation: 4,
       },
     }),
   },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 22,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 16,
-  },
-  generateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F97316',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
   generateButtonDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: "#9CA3AF",
+    shadowOpacity: 0,
   },
   generateButtonText: {
     fontSize: 16,
-    fontWeight: '600' as const,
+    fontFamily: Fonts.SemiBold,
     color: Colors.white,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    maxHeight: "70%",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: Fonts.Bold,
+    color: Colors.text,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  languageOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: "#F9FAFB",
+  },
+  languageOptionActive: {
+    backgroundColor: "#1F2937",
+  },
+  languageOptionEmoji: {
+    fontSize: 24,
+    marginRight: 16,
+  },
+  languageOptionName: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: Fonts.Medium,
+    color: Colors.text,
+  },
+  languageOptionNameActive: {
+    color: Colors.white,
+  },
+  checkmark: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkmarkText: {
+    fontSize: 14,
+    fontFamily: Fonts.Bold,
+    color: "#1F2937",
+  },
+  closeModalButton: {
+    backgroundColor: "#F3F4F6",
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  closeModalButtonText: {
+    fontSize: 16,
+    fontFamily: Fonts.SemiBold,
+    color: Colors.text,
+    textAlign: "center",
   },
 });

@@ -1,8 +1,8 @@
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
-import { ArrowLeft, Camera, Images, Text as TextIcon, ChevronDown, Crop } from "lucide-react-native";
-import React, { useState } from "react";
+import * as FileSystem from "expo-file-system/legacy";
+import { ArrowLeft, Camera, Images, Text as TextIcon, Crop } from "lucide-react-native";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -19,15 +19,26 @@ import { Image } from "expo-image";
 import { useExplanations } from "@/contexts/explanations";
 import { generateObject } from "@rork-ai/toolkit-sdk";
 import { z } from "zod";
+import LanguagePicker from "@/components/LanguagePicker";
+import { GenerateLanguage, getLanguageByCode, getLanguagePrompt } from "@/constants/languageOptions";
 
 export default function CaptureTextImageScreen() {
   const router = useRouter();
+  const { imageUri } = useLocalSearchParams<{ imageUri?: string }>();
   const { addExplanation } = useExplanations();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showGeneratingModal, setShowGeneratingModal] = useState(false);
   const [analysisStep, setAnalysisStep] = useState("");
-  const [selectedLanguage] = useState("Auto Detect");
+  const [selectedLanguage, setSelectedLanguage] = useState<GenerateLanguage>("auto");
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+
+  // Set the image from route params if provided (from camera capture in modal)
+  useEffect(() => {
+    if (imageUri) {
+      setSelectedImage(imageUri);
+    }
+  }, [imageUri]);
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -186,7 +197,7 @@ Make the content engaging, educational, and easy to understand.`,
         year: 'numeric' 
       });
 
-      addExplanation(
+      await addExplanation(
         `${result.emoji} ${result.title} - ${formattedDate}`,
         result.content,
         {
@@ -194,7 +205,7 @@ Make the content engaging, educational, and easy to understand.`,
           summary: result.summary,
           keyPoints: result.keyPoints,
           source: 'capture',
-          language: selectedLanguage,
+          language: getLanguageByCode(selectedLanguage).name,
         }
       );
 
@@ -307,17 +318,14 @@ Make the content engaging, educational, and easy to understand.`,
             </View>
           )}
 
-          <View style={styles.languageSection}>
-            <View style={styles.languageLabelRow}>
-              <Text style={styles.robotEmoji}>🤖</Text>
-              <Text style={styles.languageLabel}>Note Language</Text>
-            </View>
-            <View style={styles.languageDropdown}>
-              <Text style={styles.dropdownEmoji}>🤖</Text>
-              <Text style={styles.dropdownText}>{selectedLanguage}</Text>
-              <ChevronDown size={20} color="#374151" />
-            </View>
-          </View>
+          {/* Language Picker */}
+          <LanguagePicker
+            selectedLanguage={selectedLanguage}
+            onSelectLanguage={setSelectedLanguage}
+            showModal={showLanguageDropdown}
+            onOpenModal={() => setShowLanguageDropdown(true)}
+            onCloseModal={() => setShowLanguageDropdown(false)}
+          />
 
           <View style={styles.bottomActionBar}>
             <TouchableOpacity style={styles.circleActionButton} onPress={() => router.back()}>

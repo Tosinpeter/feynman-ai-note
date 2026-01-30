@@ -13,26 +13,28 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { t } = useTranslation();
 
   const handleSignOut = () => {
     if (Platform.OS === "web") {
-      if (confirm("Are you sure you want to sign out?")) {
+      if (confirm(t('settings.signOutConfirm'))) {
         signOut();
-        router.replace("/welcome");
+        router.replace("/auth-page");
       }
     } else {
-      Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-        { text: "Cancel", style: "cancel" },
+      Alert.alert(t('settings.signOut'), t('settings.signOutConfirm'), [
+        { text: t('common.cancel'), style: "cancel" },
         {
-          text: "Sign Out",
+          text: t('settings.signOut'),
           style: "destructive",
           onPress: () => {
             signOut();
-            router.replace("/welcome");
+            router.replace("/auth-page");
           },
         },
       ]);
@@ -49,7 +51,7 @@ export default function SettingsScreen() {
           >
             <ArrowLeft size={24} color={Colors.darkBrown} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerTitle}>{t('settings.title')}</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -63,45 +65,45 @@ export default function SettingsScreen() {
               <User size={32} color={Colors.white} />
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.name || "Guest"}</Text>
+              <Text style={styles.profileName}>{user?.name || t('settings.guest')}</Text>
               <Text style={styles.profileEmail}>{user?.email || ""}</Text>
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About</Text>
+            <Text style={styles.sectionTitle}>{t('settings.about')}</Text>
             <View style={styles.card}>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>App Version</Text>
+                <Text style={styles.infoLabel}>{t('settings.appVersion')}</Text>
                 <Text style={styles.infoValue}>1.0.0</Text>
               </View>
               <View style={styles.divider} />
               <TouchableOpacity style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Terms of Service</Text>
-                <Text style={styles.linkText}>View</Text>
+                <Text style={styles.infoLabel}>{t('welcome.termsOfService')}</Text>
+                <Text style={styles.linkText}>{t('settings.view')}</Text>
               </TouchableOpacity>
               <View style={styles.divider} />
               <TouchableOpacity style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Privacy Policy</Text>
-                <Text style={styles.linkText}>View</Text>
+                <Text style={styles.infoLabel}>{t('welcome.privacyPolicy')}</Text>
+                <Text style={styles.linkText}>{t('settings.view')}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Account</Text>
+            <Text style={styles.sectionTitle}>{t('settings.account')}</Text>
             <TouchableOpacity
               style={styles.signOutButton}
               onPress={handleSignOut}
               activeOpacity={0.8}
             >
               <LogOut size={20} color={Colors.white} />
-              <Text style={styles.signOutText}>Sign Out</Text>
+              <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
             </TouchableOpacity>
           </View>
 
           <Text style={styles.footerText}>
-            Made with ❤️ using the Feynman Technique
+            {t('settings.madeWithLove')}
           </Text>
         </ScrollView>
       </SafeAreaView>

@@ -15,29 +15,39 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.nexus-ai-learn-fast",
+      "bundleIdentifier": "com.faynmanai.app",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
+        ],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.356053583214-q6jbudjlftved6err9km75ig5a8p58l0"
+            ]
+          }
         ],
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera"
       },
-      "usesIcloudStorage": true
+      "usesIcloudStorage": true,
+      "appleTeamId": "SP7M3LG48Y"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.nexus_ai_learn_fast",
+      "package": "com.faynmanai.app",
       "permissions": [
-        "RECORD_AUDIO",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "INTERNET"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {

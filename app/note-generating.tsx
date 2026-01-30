@@ -7,14 +7,14 @@ import {
   Platform,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { 
-  Sparkles, 
-  Upload, 
-  AudioLines, 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  RotateCw, 
+import {
+  Sparkles,
+  Upload,
+  AudioLines,
+  Play,
+  Pause,
+  RotateCcw,
+  RotateCw,
   Info,
   Hourglass,
   FileAudio,
@@ -83,7 +83,7 @@ export default function NoteGeneratingScreen() {
   const sourceType = typeof params.sourceType === 'string' ? params.sourceType : 'recording';
   const useSessionStorage = typeof params.useSessionStorage === 'string' ? params.useSessionStorage === 'true' : false;
   const rawAudioBase64 = typeof params.audioBase64 === 'string' ? params.audioBase64 : '';
-  
+
   // Get audio base64 from sessionStorage (web) or URL params
   let audioBase64 = '';
   if (Platform.OS === 'web' && useSessionStorage) {
@@ -205,24 +205,24 @@ export default function NoteGeneratingScreen() {
         console.log('Request timeout, aborting...');
         controller.abort();
       }, REQUEST_TIMEOUT);
-      
+
       try {
         console.log('Sending audio to STT API:', STT_API_URL);
-        
+
         const sttResponse = await fetch(STT_API_URL, {
           method: 'POST',
           body: formData,
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
         console.log('STT API response status:', sttResponse.status);
-        
+
         if (sttResponse.ok) {
           const result = await sttResponse.json();
           console.log('=== STT API Result (SUCCESS) ===');
           console.log('Transcribed text:', result.text);
-          
+
           if (result.text && result.text.trim().length > 0) {
             return result.text.trim();
           }
@@ -230,7 +230,7 @@ export default function NoteGeneratingScreen() {
         } else {
           const errorText = await sttResponse.text();
           console.error('STT API error response:', sttResponse.status, errorText);
-          
+
           if (sttResponse.status >= 500 || sttResponse.status === 0) {
             throw new Error(`Server error: ${sttResponse.status}`);
           }
@@ -258,43 +258,43 @@ export default function NoteGeneratingScreen() {
       }
       return 'webm';
     };
-    
+
     // For web platform with audioBase64 available
     if (Platform.OS === 'web' && audioBase64 && audioBase64.length > 100) {
       console.log('=== Using audioBase64 for web transcription (STT API) ===');
       try {
         const formData = new FormData();
-        
+
         let fileMimeType = mimeType || 'audio/webm';
         let base64Data = '';
-        
+
         if (audioBase64.startsWith('data:')) {
           const commaIndex = audioBase64.indexOf(',');
           if (commaIndex === -1) {
             console.error('Cannot find comma in data URL');
             return webTranscript || '';
           }
-          
+
           const header = audioBase64.substring(0, commaIndex);
           base64Data = audioBase64.substring(commaIndex + 1);
-          
+
           const mimeMatch = header.match(/data:([^;,]+)/);
           if (mimeMatch) {
             fileMimeType = mimeMatch[1];
           }
-          
+
           console.log('Extracted mime type from data URL:', fileMimeType);
           console.log('Base64 data length:', base64Data.length);
         } else {
           base64Data = audioBase64;
           console.log('Using raw base64 data, length:', base64Data.length);
         }
-        
+
         if (!base64Data || base64Data.length < 100) {
           console.error('Base64 data too short or empty');
           return webTranscript || '';
         }
-        
+
         let blob: Blob;
         try {
           blob = base64ToBlob(base64Data, fileMimeType);
@@ -303,62 +303,62 @@ export default function NoteGeneratingScreen() {
           console.error('Failed to convert base64 to blob:', blobError);
           return webTranscript || '';
         }
-        
+
         if (blob.size < 100) {
           console.error('Blob too small, likely corrupted data');
           return webTranscript || '';
         }
-        
+
         const fileExtension = getFileExtension(fileName, fileMimeType);
         const finalMimeType = getMimeTypeFromExtension(fileExtension);
-        
+
         console.log('Final file extension:', fileExtension, 'mime type:', finalMimeType);
-        
+
         const audioFile = new File([blob], `recording.${fileExtension}`, { type: finalMimeType });
         console.log('Created File object:', audioFile.name, 'size:', audioFile.size, 'type:', audioFile.type);
         formData.append('audio', audioFile);
-        
+
         const result = await performFetch(formData);
         if (result) return result;
-        
+
         console.log('STT returned empty result');
         return webTranscript || '';
       } catch (error: any) {
         console.error('=== Transcription Error (base64) ===', error?.message || error);
-        
+
         const errorMessage = error?.message || String(error);
-        const isRetryableError = 
-          error instanceof TypeError || 
+        const isRetryableError =
+          error instanceof TypeError ||
           error?.name === 'AbortError' ||
-          errorMessage.includes('network') || 
+          errorMessage.includes('network') ||
           errorMessage.includes('Network') ||
           errorMessage.includes('fetch') ||
           errorMessage.includes('Failed to fetch') ||
           errorMessage.includes('NetworkError');
-        
+
         if (retryCount < MAX_RETRIES && isRetryableError) {
           const delay = RETRY_DELAYS[retryCount] || 2000;
           console.log(`Network error, retrying in ${delay}ms (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return transcribeAudio(retryCount + 1);
         }
-        
+
         console.log('Max retries reached, continuing without transcription');
         return webTranscript || '';
       }
     }
-    
+
     if (!audioUri && !audioBase64) {
       console.log('No audio URI or base64, using web transcript if available');
       return webTranscript;
     }
-    
+
     try {
       const formData = new FormData();
-      
+
       if (Platform.OS === 'web') {
         let blob: Blob;
-        
+
         console.log('Fetching blob from web URI:', audioUri);
         try {
           const response = await fetch(audioUri);
@@ -371,17 +371,17 @@ export default function NoteGeneratingScreen() {
           console.error('Failed to fetch from URI:', fetchError);
           return webTranscript || '';
         }
-        
+
         if (blob.size < 100) {
           console.error('Fetched blob too small');
           return webTranscript || '';
         }
-        
+
         const fileExtension = getFileExtension(fileName, blob.type || mimeType);
         const fileMimeType = getMimeTypeFromExtension(fileExtension);
-        
+
         console.log('Using file extension:', fileExtension, 'mime type:', fileMimeType);
-        
+
         const audioFile = new File([blob], `recording.${fileExtension}`, { type: fileMimeType });
         console.log('Created File object:', audioFile.name, 'size:', audioFile.size, 'type:', audioFile.type);
         formData.append('audio', audioFile);
@@ -389,43 +389,43 @@ export default function NoteGeneratingScreen() {
         const uriParts = audioUri.split('.');
         const fileType = uriParts[uriParts.length - 1].split('?')[0];
         console.log('Mobile - File type detected:', fileType);
-        
+
         const audioFile = {
           uri: audioUri,
           name: `recording.${fileType}`,
           type: getMimeTypeFromExtension(fileType),
         } as any;
-        
+
         console.log('Mobile audio file:', audioFile);
         formData.append('audio', audioFile);
       }
-      
+
       const result = await performFetch(formData);
       if (result) return result;
-      
+
       console.log('STT returned empty result');
       return webTranscript || '';
     } catch (error: any) {
       console.error('=== Transcription Error ===', error?.message || error);
-      
+
       const errorMessage = error?.message || String(error);
-      const isRetryableError = 
-        error instanceof TypeError || 
+      const isRetryableError =
+        error instanceof TypeError ||
         error?.name === 'AbortError' ||
-        errorMessage.includes('network') || 
+        errorMessage.includes('network') ||
         errorMessage.includes('Network') ||
         errorMessage.includes('fetch') ||
         errorMessage.includes('Failed to fetch') ||
         errorMessage.includes('NetworkError') ||
         errorMessage.includes('Server error');
-      
+
       if (retryCount < MAX_RETRIES && isRetryableError) {
         const delay = RETRY_DELAYS[retryCount] || 2000;
         console.log(`Network error, retrying in ${delay}ms (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return transcribeAudio(retryCount + 1);
       }
-      
+
       console.log('Max retries reached, continuing without transcription');
       return webTranscript || '';
     }
@@ -433,7 +433,7 @@ export default function NoteGeneratingScreen() {
 
   const startProcessing = async () => {
     let transcription = '';
-    
+
     // Step 1: Upload (simulated progress)
     await new Promise<void>((resolve) => {
       animateStep(1, 1500, resolve);
@@ -510,7 +510,7 @@ export default function NoteGeneratingScreen() {
 
       if (hasTranscription) {
         const aiLanguage = language === 'Auto detect' ? 'English' : language;
-        
+
         const prompt = `You are an AI learning assistant. A user has just recorded an audio note and here is the transcription:
 
 "${transcription}"
@@ -558,10 +558,10 @@ Language: ${aiLanguage}`;
           topicName = topicMatch[1].trim();
         }
       } else {
-        topicName = sourceType === 'upload' 
+        topicName = sourceType === 'upload'
           ? `Audio Note - ${new Date().toLocaleDateString()}`
           : `Voice Note - ${new Date().toLocaleDateString()}`;
-        generatedContent = sourceType === 'upload' 
+        generatedContent = sourceType === 'upload'
           ? `📝 Audio File Notes
 
 File Name: ${fileName}
@@ -627,7 +627,7 @@ Tip: You can edit this note anytime to add more details from your recording.`;
 
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      addExplanation(topicName, generatedContent);
+      await addExplanation(topicName, generatedContent);
       setIsComplete(true);
 
     } catch (error) {
@@ -652,7 +652,7 @@ ${transcription.length > 2 ? `TRANSCRIPTION:\n${transcription}\n\n` : ''}This vo
 
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      addExplanation(fileName, fallbackContent);
+      await addExplanation(fileName, fallbackContent);
       setIsComplete(true);
     }
   };

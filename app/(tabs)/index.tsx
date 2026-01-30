@@ -13,10 +13,12 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Fonts } from "@/constants/fonts";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { profile } = useAuth();
+
 
   return (
     <View style={styles.container}>
@@ -24,11 +26,19 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.profileSection}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user?.name?.charAt(0).toUpperCase() || "G"}
-              </Text>
+              {profile?.avatar_url ? (
+                <Image
+                  source={{ uri: profile.avatar_url }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {profile?.full_name?.charAt(0).toUpperCase() || "G"}
+                </Text>
+              )}
             </View>
-            <Text style={styles.greeting}>Hi, {user?.name || "Guest"}!</Text>
+            <Text style={styles.greeting}>Hi, {profile?.full_name || "Guest"}!</Text>
           </View>
           <View style={styles.languageSelector}>
             <Text style={styles.languageFlag}>🇺🇸</Text>
@@ -99,8 +109,7 @@ export default function HomeScreen() {
                     </View>
                   </View>
                   <Text style={styles.cardDescription}>
-                    <Text style={styles.bold}>Use Feynman Technique</Text>
-                    {"\n"}to learn and memorize anything.
+                    to learn and memorize anything.
                   </Text>
                   <TouchableOpacity 
                     style={styles.cardButton}
@@ -136,7 +145,7 @@ export default function HomeScreen() {
                 <View style={styles.cardLeft}>
                   <Text style={styles.cardTitleLarge}>Create Notes</Text>
                   <Text style={styles.cardDescription}>
-                    Create notes, quizzes, flashcards and more to help you learn faster.
+                    Create notes, quizzes, flashcards and more.
                   </Text>
                   <TouchableOpacity 
                     style={styles.cardButton}
@@ -189,6 +198,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.orange,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   avatarText: {
     color: Colors.white,
@@ -196,8 +211,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   greeting: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: Fonts.Bold,
     color: Colors.text,
   },
   languageSelector: {
@@ -225,7 +240,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
-    gap: 16,
+    gap: 3,
   },
   card: {
     borderRadius: 20,
@@ -252,7 +267,7 @@ const styles = StyleSheet.create({
   cardContent: {
     flexDirection: "row",
     justifyContent: "space-between",
-    minHeight: 160,
+    height: 100,
   },
   cardLeft: {
     flex: 1,
@@ -271,18 +286,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
     color: Colors.white,
     marginBottom: 4,
   },
   cardTitleLarge: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: "700",
     color: Colors.white,
   },
   cardSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.white,
     marginBottom: 12,
   },

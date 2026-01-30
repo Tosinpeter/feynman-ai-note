@@ -10,13 +10,17 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { Video, ArrowLeft, Link, Sparkles, Play, AlertCircle } from 'lucide-react-native';
-import { Image } from 'expo-image';
+import { ArrowLeft, Sparkles, Clipboard } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
+import { Fonts } from '@/constants/fonts';
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { useExplanations } from '@/contexts/explanations';
+import LanguagePicker from '@/components/LanguagePicker';
+import { GenerateLanguage } from '@/constants/languageOptions';
 
 const YOUTUBE_URL_REGEX = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
 
@@ -28,6 +32,8 @@ export default function YouTubeVideoScreen() {
   const [error, setError] = useState('');
   const [videoId, setVideoId] = useState('');
   const [videoInfo, setVideoInfo] = useState<{ title: string; thumbnail: string } | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<GenerateLanguage>("auto");
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
 
   const extractVideoId = (inputUrl: string): string | null => {
     const match = inputUrl.match(YOUTUBE_URL_REGEX);
@@ -37,7 +43,7 @@ export default function YouTubeVideoScreen() {
   const handleUrlChange = (text: string) => {
     setUrl(text);
     setError('');
-    
+
     const extractedId = extractVideoId(text);
     if (extractedId) {
       setVideoId(extractedId);
@@ -53,7 +59,7 @@ export default function YouTubeVideoScreen() {
 
   const fetchVideoInfo = async (id: string): Promise<{ title: string; description: string; channel: string; tags: string }> => {
     console.log('Fetching video info for:', id);
-    
+
     // Try noembed API first (most reliable)
     try {
       const noembedResponse = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`);
@@ -115,6 +121,14 @@ export default function YouTubeVideoScreen() {
     return { title: '', description: '', channel: '', tags: '' };
   };
 
+  const getLanguagePrompt = () => {
+    if (selectedLanguage === "auto") {
+      return "Generate the notes in the same language as the video title, or English if unclear.";
+    }
+    const selectedLang = languageOptions.find((l) => l.code === selectedLanguage);
+    return `Generate all notes and content in ${selectedLang?.name || "English"}.`;
+  };
+
   const handleGenerate = async () => {
     if (!videoId) {
       setError('Please enter a valid YouTube URL');
@@ -126,10 +140,10 @@ export default function YouTubeVideoScreen() {
 
     try {
       console.log('Starting YouTube video processing...');
-      
+
       const fetchedInfo = await fetchVideoInfo(videoId);
       console.log('Fetched video info:', JSON.stringify(fetchedInfo, null, 2));
-      
+
       // Update video info with fetched title
       if (fetchedInfo.title) {
         setVideoInfo({
@@ -145,12 +159,15 @@ export default function YouTubeVideoScreen() {
         fetchedInfo.description ? `Description: ${fetchedInfo.description}` : '',
         fetchedInfo.tags ? `Tags: ${fetchedInfo.tags}` : '',
       ].filter(Boolean).join('\n\n');
-      
+
       console.log('Video content for AI:', videoContent);
+
+      const languageInstruction = getLanguagePrompt();
 
       const prompt = `You are an AI learning assistant. Create study notes SPECIFICALLY about the following YouTube video.
 
 IMPORTANT: Your notes MUST be about the exact topic mentioned in the video title. Do NOT generate generic or unrelated content.
+${languageInstruction}
 
 Video Information:
 ${videoContent}
@@ -195,7 +212,7 @@ Remember: Focus ONLY on the topic "${actualTitle}". Do not deviate to other subj
 
       const fetchedTitle = fetchedInfo.title || videoInfo?.title;
       let topicName = fetchedTitle || 'YouTube Video Notes';
-      
+
       // Try to extract main topic from AI response
       const topicMatch = generatedContent.match(/MAIN TOPIC:\s*([^\n]+)/);
       if (topicMatch && topicMatch[1].trim() && topicMatch[1].trim() !== '**') {
@@ -204,28 +221,28 @@ Remember: Focus ONLY on the topic "${actualTitle}". Do not deviate to other subj
           topicName = extractedTopic;
         }
       }
-      
+
       // Always prefer the actual video title if we have one and topic extraction failed
       if (fetchedTitle && fetchedTitle !== 'YouTube Video' && (topicName === 'YouTube Video Notes' || topicName === '**' || topicName.length < 3)) {
         topicName = fetchedTitle;
       }
-      
+
       // Clean up any markdown formatting from title
       topicName = topicName.replace(/^\*+|\*+$/g, '').replace(/^#+\s*/, '').trim();
-      
+
       // Final fallback
       if (!topicName || topicName.length < 2 || topicName === '**') {
         topicName = 'Video Notes';
       }
 
       console.log('Adding explanation with topic:', topicName);
-      addExplanation(topicName, generatedContent);
+      await addExplanation(topicName, generatedContent);
 
       router.replace('/(tabs)/library');
     } catch (err) {
       console.error('Error generating notes:', err);
       setError('Failed to generate notes. Please try again.');
-      
+
       if (Platform.OS !== 'web') {
         Alert.alert('Error', 'Failed to generate notes. Please try again.');
       }
@@ -249,183 +266,150 @@ Remember: Focus ONLY on the topic "${actualTitle}". Do not deviate to other subj
     }
   };
 
+  const handleOpenYouTube = () => {
+    Linking.openURL('https://www.youtube.com');
+  };
+
+  const isValidUrl = !!videoId;
+
   return (
-    <>
-      <Stack.Screen
-        options={{
-          headerShown: false,
-        }}
-      />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2} />
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={24} color="#374151" />
           </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <Video size={24} color="#EF4444" strokeWidth={2} />
-            <Text style={styles.headerTitle}>YouTube Video</Text>
-          </View>
+          <Text style={styles.headerTitle}>Generate from YouTube</Text>
           <View style={styles.headerSpacer} />
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-          <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Play size={48} color="#EF4444" strokeWidth={2} fill="#EF4444" />
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Enter YouTube URL section */}
+            <View style={styles.sectionHeader}>
+              <View style={styles.youtubeIcon}>
+                <View style={styles.youtubePlayButton} />
+              </View>
+              <Text style={styles.sectionTitle}>Enter YouTube URL</Text>
             </View>
-          </View>
 
-          <Text style={styles.title}>Enter YouTube URL</Text>
-          <Text style={styles.subtitle}>
-            Paste a YouTube video link to generate study notes from the video content
-          </Text>
-
-          <View style={styles.inputContainer}>
             <View style={styles.inputWrapper}>
-              <Link size={20} color="#9CA3AF" strokeWidth={2} />
-              <TextInput
-                style={styles.input}
-                placeholder="https://youtube.com/watch?v=..."
-                placeholderTextColor="#9CA3AF"
-                value={url}
-                onChangeText={handleUrlChange}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                editable={!isLoading}
-              />
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="https://youtube.com/..."
+                  placeholderTextColor="#9CA3AF"
+                  value={url}
+                  onChangeText={handleUrlChange}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  editable={!isLoading}
+                />
+              </View>
+
               <TouchableOpacity
                 style={styles.pasteButton}
                 onPress={handlePaste}
                 activeOpacity={0.7}
                 disabled={isLoading}
               >
-                <Text style={styles.pasteButtonText}>Paste</Text>
+                <Clipboard size={16} color="#374151" />
+                <Text style={styles.pasteButtonText}>Paste link</Text>
               </TouchableOpacity>
             </View>
 
             {error ? (
-              <View style={styles.errorContainer}>
-                <AlertCircle size={16} color="#EF4444" strokeWidth={2} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
+              <Text style={styles.errorText}>{error}</Text>
             ) : null}
+
+            {/* Topic generate language section */}
+            <LanguagePicker
+              selectedLanguage={selectedLanguage}
+              onSelectLanguage={setSelectedLanguage}
+              showModal={showLanguageDropdown}
+              onOpenModal={() => setShowLanguageDropdown(true)}
+              onCloseModal={() => setShowLanguageDropdown(false)}
+            />
+          </ScrollView>
+
+          <View style={styles.bottomBar}>
+            <TouchableOpacity
+              style={styles.openYoutubeButton}
+              onPress={handleOpenYouTube}
+              activeOpacity={0.7}
+            >
+              <View style={styles.youtubeIconSmall}>
+                <View style={styles.youtubePlayButtonSmall} />
+              </View>
+              <Text style={styles.openYoutubeText}>Open YouTube App</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.generateButton,
+                (!isValidUrl || isLoading) && styles.buttonDisabled,
+              ]}
+              onPress={handleGenerate}
+              disabled={!isValidUrl || isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={styles.generateButtonText}>Generating...</Text>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={20} color="#FFFFFF" />
+                  <Text style={styles.generateButtonText}>Generate Topic</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
-
-          {videoInfo && videoId && (
-            <View style={styles.previewCard}>
-              <Image
-                source={{ uri: videoInfo.thumbnail }}
-                style={styles.thumbnail}
-                contentFit="cover"
-              />
-              <View style={styles.previewOverlay}>
-                <View style={styles.playIconSmall}>
-                  <Play size={24} color="#FFFFFF" strokeWidth={2} fill="#FFFFFF" />
-                </View>
-              </View>
-              <View style={styles.previewInfo}>
-                <Text style={styles.previewTitle} numberOfLines={2}>
-                  {videoInfo.title}
-                </Text>
-                <Text style={styles.previewId}>Video ID: {videoId}</Text>
-              </View>
-            </View>
-          )}
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>How it works</Text>
-            <View style={styles.infoStep}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>1</Text>
-              </View>
-              <Text style={styles.stepText}>Paste any YouTube video URL</Text>
-            </View>
-            <View style={styles.infoStep}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>2</Text>
-              </View>
-              <Text style={styles.stepText}>AI analyzes the video content</Text>
-            </View>
-            <View style={styles.infoStep}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>3</Text>
-              </View>
-              <Text style={styles.stepText}>Get comprehensive study notes</Text>
-            </View>
-          </View>
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.generateButton,
-              (!videoId || isLoading) && styles.generateButtonDisabled,
-            ]}
-            onPress={handleGenerate}
-            activeOpacity={0.8}
-            disabled={!videoId || isLoading}
-          >
-            {isLoading ? (
-              <>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.generateButtonText}>Generating Notes...</Text>
-              </>
-            ) : (
-              <>
-                <Sparkles size={20} color="#FFFFFF" strokeWidth={2} />
-                <Text style={styles.generateButtonText}>Generate Notes</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.white,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    padding: 8,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold' as const,
+    fontFamily: Fonts.SemiBold,
     color: '#1F2937',
   },
   headerSpacer: {
@@ -434,182 +418,219 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 120,
   },
-  iconContainer: {
+  sectionHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    gap: 8,
+    marginBottom: 12,
   },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FEE2E2',
+  youtubeIcon: {
+    width: 24,
+    height: 18,
+    backgroundColor: '#FF0000',
+    borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold' as const,
-    color: '#1F2937',
-    textAlign: 'center',
-    marginBottom: 8,
+  youtubePlayButton: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderTopWidth: 4,
+    borderBottomWidth: 4,
+    borderLeftColor: '#FFFFFF',
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    marginLeft: 2,
   },
-  subtitle: {
+  sectionTitle: {
     fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 24,
+    fontFamily: Fonts.SemiBold,
+    color: '#1F2937',
+  },
+  robotEmoji: {
+    fontSize: 18,
+  },
+  inputWrapper: {
     marginBottom: 32,
   },
   inputContainer: {
-    marginBottom: 24,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
+  textInput: {
+    fontSize: 15,
+    fontFamily: Fonts.Regular,
     color: '#1F2937',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    padding: 16,
+    minHeight: 56,
   },
   pasteButton: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 6,
+    marginTop: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
   pasteButtonText: {
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontFamily: Fonts.Medium,
     color: '#374151',
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    paddingHorizontal: 4,
   },
   errorText: {
     fontSize: 14,
+    fontFamily: Fonts.Regular,
     color: '#EF4444',
-  },
-  previewCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    overflow: 'hidden',
+    marginTop: -24,
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
-  thumbnail: {
-    width: '100%',
-    height: 180,
-    backgroundColor: '#1F2937',
+  languageSection: {
+    marginBottom: 20,
   },
-  previewOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 180,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  playIconSmall: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(239, 68, 68, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  previewInfo: {
-    padding: 16,
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  previewId: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  infoCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold' as const,
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  infoStep: {
+  languageSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderBottomWidth: 3,
+    borderBottomColor: '#374151',
   },
-  stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#EDE9FE',
-    justifyContent: 'center',
+  languageSelectorContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
+    gap: 10,
   },
-  stepNumberText: {
-    fontSize: 14,
-    fontWeight: 'bold' as const,
-    color: '#8B5CF6',
+  languageEmoji: {
+    fontSize: 20,
   },
-  stepText: {
+  languageName: {
     fontSize: 15,
-    color: '#4B5563',
-    flex: 1,
+    fontFamily: Fonts.Medium,
+    color: '#1F2937',
   },
-  footer: {
-    backgroundColor: Colors.white,
+  chevronContainer: {
+    alignItems: 'center',
+  },
+  chevronDown: {
+    marginTop: -4,
+  },
+  languageDropdown: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  languageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  languageOptionSelected: {
+    backgroundColor: '#F9FAFB',
+  },
+  languageOptionEmoji: {
+    fontSize: 20,
+  },
+  languageOptionText: {
+    fontSize: 15,
+    fontFamily: Fonts.Regular,
+    color: '#374151',
+  },
+  languageOptionTextSelected: {
+    fontFamily: Fonts.Medium,
+    color: '#1F2937',
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+  },
+  openYoutubeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  youtubeIconSmall: {
+    width: 20,
+    height: 14,
+    backgroundColor: '#FF0000',
+    borderRadius: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  youtubePlayButtonSmall: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderTopWidth: 3,
+    borderBottomWidth: 3,
+    borderLeftColor: '#FFFFFF',
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    marginLeft: 1,
+  },
+  openYoutubeText: {
+    fontSize: 15,
+    fontFamily: Fonts.Medium,
+    color: '#1F2937',
   },
   generateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EF4444',
-    paddingVertical: 16,
+    backgroundColor: '#10B981',
     borderRadius: 12,
-    gap: 8,
+    height: 56,
+    gap: 10,
   },
-  generateButtonDisabled: {
+  buttonDisabled: {
     backgroundColor: '#9CA3AF',
   },
   generateButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: Colors.white,
+    fontSize: 17,
+    fontFamily: Fonts.SemiBold,
+    color: '#FFFFFF',
   },
 });

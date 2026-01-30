@@ -1,4 +1,5 @@
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useRouter } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import React from "react";
@@ -307,8 +308,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: Fonts.Bold,
     color: Colors.text,
   },
   placeholder: {
@@ -323,13 +324,14 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   mainTitle: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 20,
+    fontFamily: Fonts.Bold,
     color: Colors.text,
     marginBottom: 8,
   },
   dateText: {
     fontSize: 14,
+    fontFamily: Fonts.Regular,
     color: "#6B7280",
     marginBottom: 4,
   },
@@ -337,13 +339,14 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
+    fontFamily: Fonts.Bold,
     color: Colors.text,
     marginBottom: 12,
   },
   bodyText: {
-    fontSize: 15,
+    fontSize: 14,
+    fontFamily: Fonts.Regular,
     color: "#374151",
     lineHeight: 24,
     marginBottom: 12,
@@ -354,7 +357,7 @@ const styles = StyleSheet.create({
   },
   listNumber: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.Bold,
     color: Colors.text,
     marginRight: 4,
   },
@@ -363,7 +366,7 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.Bold,
     color: Colors.text,
     marginBottom: 4,
   },
@@ -374,6 +377,7 @@ const styles = StyleSheet.create({
   },
   bullet: {
     fontSize: 15,
+    fontFamily: Fonts.Regular,
     color: "#6B7280",
     marginRight: 8,
     lineHeight: 24,
@@ -386,7 +390,7 @@ const styles = StyleSheet.create({
   },
   bulletTitle: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: Fonts.Bold,
     color: Colors.text,
   },
   linkItem: {

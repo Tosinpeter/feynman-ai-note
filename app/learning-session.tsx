@@ -13,7 +13,7 @@ import {
 import { useLocalSearchParams, Stack, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { Mic, Square, CheckCircle, ArrowRight } from "lucide-react-native";
+import { Mic, Square, CheckCircle, ArrowRight, ChevronLeft } from "lucide-react-native";
 import { Audio } from "expo-av";
 import { generateText } from "@rork-ai/toolkit-sdk";
 import Colors from "@/constants/colors";
@@ -167,31 +167,7 @@ Keep your response short (2-3 sentences max). Be encouraging and sweet.`;
 
       console.log("Creating recording...");
       const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync({
-        android: {
-          extension: ".m4a",
-          outputFormat: Audio.RecordingOptionsPresets.HIGH_QUALITY.android.outputFormat,
-          audioEncoder: Audio.RecordingOptionsPresets.HIGH_QUALITY.android.audioEncoder,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: ".wav",
-          outputFormat: Audio.RecordingOptionsPresets.HIGH_QUALITY.ios.outputFormat,
-          audioQuality: Audio.RecordingOptionsPresets.HIGH_QUALITY.ios.audioQuality,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {
-          mimeType: "audio/webm",
-          bitsPerSecond: 128000,
-        },
-      });
+      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       
       await recording.startAsync();
       recordingRef.current = recording;
@@ -387,12 +363,39 @@ Keep your response short (2-3 sentences max). Be encouraging and sweet.`;
     router.replace("/");
   };
 
+  const handleBack = () => {
+    if (understanding > 0 && !sessionComplete) {
+      Alert.alert(
+        "Leave Session?",
+        "Your progress will be lost. Are you sure you want to leave?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Leave", style: "destructive", onPress: () => router.back() },
+        ]
+      );
+    } else {
+      router.back();
+    }
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
           <View style={styles.content}>
+            <View style={styles.header}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handleBack}
+                activeOpacity={0.7}
+              >
+                <ChevronLeft size={24} color={Colors.darkText} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Learning Session</Text>
+              <View style={styles.headerSpacer} />
+            </View>
+
             <Text style={styles.understandingTitle}>Understanding: {understanding}%</Text>
             
             <View style={styles.progressContainer}>
@@ -523,11 +526,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     alignItems: "center",
   },
+  header: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    width: "100%",
+    paddingVertical: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      },
+    }),
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600" as const,
+    color: Colors.darkText,
+  },
+  headerSpacer: {
+    width: 40,
+  },
   understandingTitle: {
     fontSize: 18,
     fontWeight: "600" as const,
     color: Colors.darkText,
-    marginTop: 20,
+    marginTop: 8,
     marginBottom: 16,
   },
   progressContainer: {

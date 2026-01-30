@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { X, ChevronDown } from "lucide-react-native";
+import { X } from "lucide-react-native";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
+import LanguagePicker from "@/components/LanguagePicker";
+import { GenerateLanguage, getLanguageByCode } from "@/constants/languageOptions";
 
 // Declare Web Speech Recognition API types
 declare global {
@@ -30,6 +32,8 @@ export default function RecordAudioScreen() {
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [transcription, setTranscription] = useState<string>("");
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<GenerateLanguage>("auto");
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -194,6 +198,8 @@ export default function RecordAudioScreen() {
       console.log('Creating recording...');
       
       // Use proper recording format for each platform
+      // iOS: Use M4A/AAC format which is more compatible and works better with STT APIs
+      // Android: Use M4A/AAC format
       const recording = new Audio.Recording();
       await recording.prepareToRecordAsync({
         android: {
@@ -205,15 +211,12 @@ export default function RecordAudioScreen() {
           bitRate: 128000,
         },
         ios: {
-          extension: '.wav',
-          outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
           audioQuality: Audio.IOSAudioQuality.HIGH,
           sampleRate: 44100,
           numberOfChannels: 1,
           bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
         },
         web: {
           mimeType: 'audio/webm',
@@ -489,7 +492,7 @@ const formatTime = (seconds: number) => {
         params: {
           audioUri: uri || '',
           fileName: `Voice Recording ${new Date().toLocaleDateString()}`,
-          language: 'Auto detect',
+          language: getLanguageByCode(selectedLanguage).name,
           duration: recordingDuration,
           webTranscript: webTranscript,
           sourceType: 'recording',
@@ -602,17 +605,15 @@ const formatTime = (seconds: number) => {
 
       <View style={styles.spacer} />
 
-      <View style={styles.languageSection}>
-        <View style={styles.languageLabelRow}>
-          <Text style={styles.robotEmoji}>🤖</Text>
-          <Text style={styles.languageLabel}>Note Language</Text>
-        </View>
-
-        <TouchableOpacity style={styles.languageDropdown}>
-          <Text style={styles.robotEmojiSmall}>🤖</Text>
-          <Text style={styles.languageValue}>Auto Detect</Text>
-          <ChevronDown size={20} color="#9CA3AF" />
-        </TouchableOpacity>
+      {/* Language Picker */}
+      <View style={styles.languagePickerWrapper}>
+        <LanguagePicker
+          selectedLanguage={selectedLanguage}
+          onSelectLanguage={setSelectedLanguage}
+          showModal={showLanguageDropdown}
+          onOpenModal={() => setShowLanguageDropdown(true)}
+          onCloseModal={() => setShowLanguageDropdown(false)}
+        />
       </View>
 
       <Text style={styles.timer}>{formatTime(recordingTime)}</Text>
@@ -750,14 +751,9 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
   },
-  languageSection: {
+  languagePickerWrapper: {
     paddingHorizontal: 24,
     marginBottom: 16,
-  },
-  languageLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
   },
   robotEmoji: {
     fontSize: 20,

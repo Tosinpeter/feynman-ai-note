@@ -2,8 +2,12 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/auth";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Check } from "lucide-react-native";
-import React, { useState } from "react";
+import { ShieldCheck } from "lucide-react-native";
+import { useTranslation } from "react-i18next";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { Fonts } from '@/constants/fonts';
+
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -11,82 +15,230 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  Animated,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
-export default function WelcomeScreen() {
-  const { signIn } = useAuth();
+export default function AuthPage() {
+  const { signInWithGoogle, signInWithApple, isLoading: authLoading, profile } = useAuth();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const { t } = useTranslation();
+  const [isLoading, setIsLoading] = useState({ google: false, apple: false });
+  const translateYAnim = useRef(new Animated.Value(0)).current;
+  const appleTranslateYAnim = useRef(new Animated.Value(0)).current;
+  const shadowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const appleShadowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+
+  const handlePressIn = () => {
+    Animated.parallel([
+      Animated.timing(translateYAnim, {
+        toValue: 4,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+      Animated.timing(shadowOpacityAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.parallel([
+      Animated.spring(translateYAnim, {
+        toValue: 0,
+        friction: 5,
+        tension: 100,
+        useNativeDriver: false,
+      }),
+      Animated.timing(shadowOpacityAnim, {
+        toValue: 0.8,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  const handleApplePressIn = () => {
+    Animated.parallel([
+      Animated.timing(appleTranslateYAnim, {
+        toValue: 4,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+      Animated.timing(appleShadowOpacityAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
+
+  const handleApplePressOut = () => {
+    Animated.parallel([
+      Animated.spring(appleTranslateYAnim, {
+        toValue: 0,
+        friction: 5,
+        tension: 100,
+        useNativeDriver: false,
+      }),
+      Animated.timing(appleShadowOpacityAnim, {
+        toValue: 0.8,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
 
   const handleSignIn = async () => {
-    setIsLoading(true);
-    await signIn("user@example.com", "Guest User");
-    setIsLoading(false);
-    router.replace("/(tabs)/(home)");
+    if (isLoading.google || isLoading.apple || authLoading) return;
+    
+    try {
+      setIsLoading(prev => ({ ...prev, google: true }));
+      await signInWithGoogle();
+      // Navigate to home page after successful sign in
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      console.error("Google sign in error:", error);
+      // Error alert is already shown in auth context, no need to duplicate
+    } finally {
+      setIsLoading(prev => ({ ...prev, google: false }));
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    if (isLoading.google || isLoading.apple || authLoading) return;
+    
+    try {
+      setIsLoading(prev => ({ ...prev, apple: true }));
+      await signInWithApple();
+      // Navigation will happen automatically via auth state listener in _layout.tsx
+    } catch (error: any) {
+      console.error("Apple sign in error:", error);
+      // Error alert is already shown in auth context, no need to duplicate
+    } finally {
+      setIsLoading(prev => ({ ...prev, apple: false }));
+    }
   };
 
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.content}>
-          <View style={styles.illustrationContainer}>
-            <View style={styles.chalkboardBg}>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <View style={styles.illustrationContainer}>
               <Image
-                source="https://r2-pub.rork.com/generated-images/21a2188b-28ec-4fab-9231-8adc2cd797f9.png"
-                style={styles.teacherRaccoon}
-                contentFit="contain"
-              />
-              <Image
-                source="https://r2-pub.rork.com/generated-images/9e6e568e-6ddf-47bb-8680-a03823770cca.png"
-                style={styles.studentRaccoon}
-                contentFit="contain"
+                source={require("@/assets/images/IMG_1506.jpg")}
+                style={styles.heroImage}
+                contentFit="cover"
               />
             </View>
+            <Text style={styles.tagline}>{t('welcome.tagline')}</Text>
+            <Text style={styles.subtitle}>{t('welcome.subtitle')}</Text>
           </View>
 
+
           <View style={styles.textContainer}>
-            <Text style={styles.tagline}>The Feynman Technique</Text>
-            <Text style={styles.subtitle}>&quot;Explain anything like I&apos;m 5&quot;</Text>
 
             <View style={styles.titleContainer}>
-              <Text style={styles.welcomeText}>Welcome to </Text>
+              <Text style={styles.welcomeText}>{t('welcome.welcomeTo')} </Text>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>Feynman AI</Text>
+                <Text style={styles.badgeText}>{t('welcome.appName')}</Text>
               </View>
             </View>
 
-            <TouchableOpacity
-              style={[styles.signInButton, isLoading && styles.buttonDisabled]}
-              onPress={handleSignIn}
-              disabled={isLoading}
-              activeOpacity={0.8}
+            <Animated.View
+              style={[
+                styles.signInButton,
+                (isLoading.google || isLoading.apple || authLoading) && styles.buttonDisabled,
+                {
+                  transform: [{ translateY: translateYAnim }],
+                  ...Platform.select({
+                    ios: {
+                      shadowOpacity: shadowOpacityAnim,
+                    },
+                  }),
+                },
+              ]}
             >
-              <View style={styles.googleIcon}>
-                <Text style={styles.googleText}>G</Text>
-              </View>
-              <Text style={styles.signInText}>
-                {isLoading ? "Signing in..." : "Sign in with Google"}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.buttonTouchable}
+                onPress={handleSignIn}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                disabled={isLoading.google || isLoading.apple || authLoading}
+                activeOpacity={1}
+              >
+                {isLoading.google ? (
+                  <ActivityIndicator size="small" color={Colors.black} style={{ marginRight: 12 }} />
+                ) : (
+                  <Image
+                    source="https://www.google.com/favicon.ico"
+                    style={styles.googleIcon}
+                    contentFit="contain"
+                  />
+                )}
+                <Text style={styles.signInText}>
+                  {isLoading.google ? t('welcome.signingIn') : t('welcome.signInWithGoogle')}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
 
-            <View style={styles.securityBadge}>
-              <View style={styles.checkContainer}>
-                <Check size={16} color={Colors.teal} strokeWidth={3} />
-              </View>
-              <Text style={styles.securityText}>Your account is secure</Text>
+            <Animated.View
+              style={[
+                styles.appleSignInButton,
+                (isLoading.google || isLoading.apple || authLoading) && styles.buttonDisabled,
+                {
+                  transform: [{ translateY: appleTranslateYAnim }],
+                  ...Platform.select({
+                    ios: {
+                      shadowOpacity: appleShadowOpacityAnim,
+                    },
+                  }),
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.buttonTouchable}
+                onPress={handleAppleSignIn}
+                onPressIn={handleApplePressIn}
+                onPressOut={handleApplePressOut}
+                disabled={isLoading.google || isLoading.apple || authLoading}
+                activeOpacity={1}
+              >
+                {isLoading.apple ? (
+                  <ActivityIndicator size="small" color={Colors.white} style={{ marginRight: 12 }} />
+                ) : (
+                  <Image
+                    source={require("@/assets/images/img_apple.png")}
+                    style={styles.appleIcon}
+                    contentFit="contain"
+                  />
+                )}
+                <Text style={styles.appleSignInText}>
+                  {isLoading.apple ? t('welcome.signingIn') : t('welcome.signInWithApple')}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <View style={[styles.securityBadge, { gap: 5, }]}>
+              <ShieldCheck size={14} color={Colors.darkText} />
+              <Text style={styles.securityText}>{t('welcome.secureAccount')}</Text>
             </View>
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Terms of Service</Text>
+            <TouchableOpacity onPress={() => router.push('/terms-of-service')}>
+              <Text style={styles.footerLink}>{t('welcome.termsOfService')}</Text>
             </TouchableOpacity>
             <Text style={styles.footerSeparator}>•</Text>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Privacy Policy</Text>
+            <TouchableOpacity onPress={() => router.push('/privacy-policy')}>
+              <Text style={styles.footerLink}>{t('welcome.privacyPolicy')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -105,67 +257,41 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    justifyContent: "flex-start",
     paddingHorizontal: 24,
   },
+
+
   illustrationContainer: {
-    height: "40%",
+    height: 200,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
+    marginBottom: 20,
+    marginTop: 50,
   },
-  chalkboardBg: {
-    width: width * 0.85,
-    height: "100%",
-    backgroundColor: Colors.darkBrown,
+  heroImage: {
+    width: 350,
+    height: 230,
     borderRadius: 20,
-    position: "relative",
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.darkBrown,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: `0 8px 12px ${Colors.shadow}`,
-      },
-    }),
-  },
-  teacherRaccoon: {
-    position: "absolute",
-    width: 140,
-    height: 140,
-    left: 20,
-    top: "50%",
-    transform: [{ translateY: -70 }],
-  },
-  studentRaccoon: {
-    position: "absolute",
-    width: 100,
-    height: 100,
-    right: 30,
-    bottom: 20,
+   
   },
   textContainer: {
-    flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    marginTop: 20,
     alignItems: "center",
-    paddingTop: 40,
   },
   tagline: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: Colors.darkBrown,
+    fontSize: 20,
+    fontFamily: Fonts.SemiBold,
+    color: Colors.black,
     marginBottom: 8,
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    marginTop: 10,
   },
   subtitle: {
-    fontSize: 18,
-    color: Colors.grayText,
+    fontSize: 16,
+    color: Colors.black,
+    fontFamily: Fonts.Regular,
     fontStyle: "italic",
     marginBottom: 32,
   },
@@ -178,19 +304,20 @@ const styles = StyleSheet.create({
   },
   welcomeText: {
     fontSize: 20,
-    color: Colors.darkText,
-    fontWeight: "500",
+    color: Colors.black,
+    fontFamily: Fonts.SemiBold,
+    fontWeight: "600",
   },
   badge: {
-    backgroundColor: Colors.darkBrown,
-    paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.8)", // black with 70% opacity
+    paddingHorizontal: 13,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 10,
   },
   badgeText: {
     color: Colors.white,
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
+    fontFamily: Fonts.Bold,
   },
   signInButton: {
     flexDirection: "row",
@@ -198,23 +325,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     paddingVertical: 14,
     paddingHorizontal: 24,
+    marginBottom: 5,
     borderRadius: 12,
-    width: "100%",
-    maxWidth: 320,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-      web: {
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-      },
-    }),
+    justifyContent: 'center',
+    width: 350,
+    shadowColor: "rgba(0,0,0,0.8)",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.8,
+    shadowRadius: 0
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -222,42 +340,57 @@ const styles = StyleSheet.create({
   googleIcon: {
     width: 24,
     height: 24,
-    backgroundColor: Colors.orange,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
     marginRight: 12,
   },
-  googleText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: "700",
-  },
   signInText: {
-    flex: 1,
     textAlign: "center",
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.darkText,
+    fontSize: 14,
+    fontFamily: Fonts.Regular,
+    color: Colors.black,
+  },
+  appleSignInButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.8)", // 
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    width: 350,
+    marginTop: 20,
+    shadowColor: "rgba(0,0,0,0.8)",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.8,
+    shadowRadius: 0
+  },
+  buttonTouchable: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  appleIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+  },
+  appleSignInText: {
+    textAlign: "center",
+    fontSize: 14,
+    fontFamily: Fonts.Regular,
+    color: Colors.white,
   },
   securityBadge: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 16,
   },
-  checkContainer: {
-    width: 24,
-    height: 24,
-    backgroundColor: Colors.lightTeal,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
+
   securityText: {
-    fontSize: 14,
-    color: Colors.teal,
-    fontWeight: "500",
+    fontSize: 12,
+    color: Colors.darkText,
+    fontFamily: Fonts.Medium,
+    paddingVertical: 20,
   },
   footer: {
     flexDirection: "row",
@@ -268,11 +401,15 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 13,
-    color: Colors.grayText,
+    color: Colors.black,
     textDecorationLine: "underline",
   },
   footerSeparator: {
     fontSize: 13,
     color: Colors.grayText,
+  },
+  languageSwitcherContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 10,
   },
 });

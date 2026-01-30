@@ -1,4 +1,5 @@
 import Colors from "@/constants/colors";
+import { Fonts } from "@/constants/fonts";
 import { useExplanations } from "@/contexts/explanations";
 import { BookOpen, ChevronDown, ChevronRight, Folder, Search } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -13,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 type FilterType = "all" | "notes" | "quizzes" | "flashcards" | "favorites";
 
@@ -21,15 +23,16 @@ export default function LibraryScreen() {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { getRecentExplanations } = useExplanations();
+  const { t } = useTranslation();
 
   const items = getRecentExplanations();
 
   const filters: { id: FilterType; label: string }[] = [
-    { id: "all", label: "All Notes" },
-    { id: "notes", label: "Notes" },
-    { id: "quizzes", label: "Quizzes" },
-    { id: "flashcards", label: "Flashcards" },
-    { id: "favorites", label: "Favorites" },
+    { id: "all", label: t('library.allNotes') },
+    { id: "notes", label: t('library.notes') },
+    { id: "quizzes", label: t('library.quizzes') },
+    { id: "flashcards", label: t('library.flashcards') },
+    { id: "favorites", label: t('library.favorites') },
   ];
 
   const router = useRouter();
@@ -118,7 +121,7 @@ export default function LibraryScreen() {
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
-          <Text style={styles.title}>My Library</Text>
+          <Text style={styles.title}>{t('library.title')}</Text>
           <TouchableOpacity
             onPress={() => setShowFilterDropdown(!showFilterDropdown)}
             style={styles.filterButton}
@@ -126,7 +129,7 @@ export default function LibraryScreen() {
           >
             <Folder size={20} color="#8B5CF6" />
             <Text style={styles.filterText}>
-              {filters.find(f => f.id === activeFilter)?.label || "All Notes"}
+              {filters.find(f => f.id === activeFilter)?.label || t('library.allNotes')}
             </Text>
             <ChevronDown size={16} color={Colors.navInactive} />
           </TouchableOpacity>
@@ -157,8 +160,8 @@ export default function LibraryScreen() {
         <View style={styles.searchContainer}>
           <Search size={20} color={Colors.navInactive} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Search your notes..."
+            // style={styles.searchInput}
+            placeholder={t('library.searchPlaceholder')}
             placeholderTextColor={Colors.navInactive}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -172,16 +175,16 @@ export default function LibraryScreen() {
           {items.length === 0 ? (
             <View style={styles.emptyState}>
               <BookOpen size={64} color={Colors.navInactive} />
-              <Text style={styles.emptyTitle}>No notes yet</Text>
+              <Text style={styles.emptyTitle}>{t('library.emptyTitle')}</Text>
               <Text style={styles.emptyDescription}>
-                Create your first note to see it here
+                {t('library.emptyDescription')}
               </Text>
               <TouchableOpacity
                 style={styles.createButton}
                 onPress={() => router.push("/start-learning")}
                 activeOpacity={0.8}
               >
-                <Text style={styles.createButtonText}>Start Learning</Text>
+                <Text style={styles.createButtonText}>{t('library.startLearning')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -232,8 +235,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700" as const,
+    fontSize: 22,
+    fontFamily: Fonts.SemiBold,
     color: Colors.text,
   },
   filterButton: {
@@ -247,7 +250,7 @@ const styles = StyleSheet.create({
   },
   filterText: {
     fontSize: 16,
-    fontWeight: "600" as const,
+    fontFamily: Fonts.SemiBold,
     color: Colors.text,
   },
   filterDropdown: {
@@ -283,12 +286,13 @@ const styles = StyleSheet.create({
   filterOptionText: {
     flex: 1,
     fontSize: 16,
+    fontFamily: Fonts.Regular,
     color: Colors.text,
   },
   checkmark: {
     fontSize: 18,
     color: "#8B5CF6",
-    fontWeight: "700" as const,
+    fontFamily: Fonts.Bold,
   },
   searchContainer: {
     flexDirection: "row",
@@ -308,6 +312,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
+    fontFamily: Fonts.Regular,
     color: Colors.text,
     ...Platform.select({
       web: {
@@ -330,12 +335,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "600" as const,
+    fontFamily: Fonts.SemiBold,
     color: "#6B7280",
     marginTop: 16,
   },
   emptyDescription: {
     fontSize: 14,
+    fontFamily: Fonts.Regular,
     color: Colors.navInactive,
     textAlign: "center" as const,
     marginTop: 8,
@@ -349,7 +355,7 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     fontSize: 16,
-    fontWeight: "700" as const,
+    fontFamily: Fonts.Bold,
     color: Colors.white,
   },
   notesListContainer: {
@@ -383,12 +389,13 @@ const styles = StyleSheet.create({
   },
   noteTitle: {
     fontSize: 16,
-    fontWeight: "600" as const,
+    fontFamily: Fonts.SemiBold,
     color: Colors.text,
     marginBottom: 4,
   },
   noteDate: {
     fontSize: 13,
+    fontFamily: Fonts.Regular,
     color: Colors.navInactive,
   },
 });
