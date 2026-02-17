@@ -4,7 +4,6 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { ShieldCheck } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Fonts } from '@/constants/fonts';
 
 import React, { useState, useRef } from "react";
@@ -16,7 +15,6 @@ import {
   Dimensions,
   Platform,
   Animated,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,7 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const { width } = Dimensions.get("window");
 
 export default function AuthPage() {
-  const { signInWithGoogle, signInWithApple, isLoading: authLoading, profile } = useAuth();
+  const { signInWithGoogle, signInWithApple, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState({ google: false, apple: false });

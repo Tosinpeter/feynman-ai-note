@@ -51,9 +51,10 @@ interface AuthState {
   signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
+  setSession: React.Dispatch<React.SetStateAction<Session | null>>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updateProfile: (updates: Partial<Pick<Profile, "full_name" | "avatar_url">>) => Promise<{ error: Error | null }>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: (userId?: string) => Promise<void>;
 }
 
 // Get the redirect URL for OAuth (used for Apple Sign-In)
@@ -132,20 +133,6 @@ export const [AuthContext, useAuth] = createContextHook((): AuthState => {
         if (cachedProfile) {
           setProfile(cachedProfile);
         }
-
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        setSession(initialSession);
-        
-        if (initialSession?.user) {
-          // Fetch fresh profile from the profiles table
-          const profileData = await fetchProfile(initialSession.user.id);
-          setProfile(profileData);
-        } else {
-          setProfile(null);
-          await clearCachedProfile();
-        }
-      } catch (error) {
-        console.error("Error getting initial session:", error);
       } finally {
         setIsLoading(false);
       }
@@ -209,8 +196,7 @@ export const [AuthContext, useAuth] = createContextHook((): AuthState => {
 
         console.log("Successfully signed in with Google:", data.user?.email);
       } else {
-        // Sign in was cancelled or failed
-        console.log("Google sign in cancelled or failed");
+        throw new Error("Google sign in cancelled or failed");
       }
     } catch (error) {
       console.error("Error signing in with Google:", error);
@@ -421,10 +407,11 @@ export const [AuthContext, useAuth] = createContextHook((): AuthState => {
   }, [session?.user?.id]);
 
   // Refresh the profile state from the database
-  const refreshProfile = useCallback(async (): Promise<void> => {
-    if (!session?.user?.id) return;
-    
-    const profileData = await fetchProfile(session.user.id);
+  const refreshProfile = useCallback(async (userId?: string): Promise<void> => {
+    const id = userId ?? session?.user?.id;
+    if (!id) return;
+
+    const profileData = await fetchProfile(id);
     setProfile(profileData);
   }, [session?.user?.id]);
 
@@ -432,7 +419,7 @@ export const [AuthContext, useAuth] = createContextHook((): AuthState => {
     profile,
     session,
     isLoading,
-    isAuthenticated: !!session,
+    isAuthenticated: !!profile,
     signInWithGoogle,
     signInWithApple,
     signInWithEmail,
@@ -440,6 +427,7 @@ export const [AuthContext, useAuth] = createContextHook((): AuthState => {
     signOut,
     resetPassword,
     updateProfile,
+    setSession,
     refreshProfile,
   };
 });

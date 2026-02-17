@@ -1,9 +1,12 @@
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/auth";
+import { useLanguage, Language } from "@/contexts/language";
+import BottomSheet from "@/components/BottomSheet";
+import LanguageSelectionContent from "@/components/LanguageSelectionContent";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,13 +15,131 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
+ import { supabase } from "@/lib/supabase";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Fonts } from "@/constants/fonts";
+import NetInfo from "@react-native-community/netinfo";
+import { useTranslation } from "react-i18next";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, setSession, refreshProfile } = useAuth();
+  const { language, changeLanguage } = useLanguage();
+  const { t } = useTranslation();
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
 
+  const handleLanguageChange = async (lang: Language) => {
+    await changeLanguage(lang);
+    setShowLanguageModal(false);
+  };
+
+  const getLanguageFlag = () => {
+    switch (language) {
+      case "it":
+        return "🇮🇹";
+      case "de":
+        return "🇩🇪";
+      case "en":
+      default:
+        return "🇬🇧";
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribeNetInfo: (() => void) | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    let inFlight = false;
+
+    const clearRetry = () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+        retryTimeout = null;
+      }
+    };
+
+    const subscribeForReconnect = () => {
+      if (unsubscribeNetInfo) return;
+
+      unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+        const isOnline =
+          Boolean(state.isConnected) && Boolean(state.isInternetReachable ?? true);
+
+        if (isOnline) {
+          clearRetry();
+          void initializeUser();
+        }
+      });
+    };
+
+    const scheduleRetry = () => {
+      clearRetry();
+      attempts += 1;
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (cap)
+      const delayMs = Math.min(30_000, 1000 * 2 ** Math.min(attempts - 1, 5));
+      retryTimeout = setTimeout(() => {
+        void initializeUser();
+      }, delayMs);
+    };
+
+    const initializeUser = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+
+      try {
+        const state = await NetInfo.fetch();
+        const isOnline =
+          Boolean(state.isConnected) && Boolean(state.isInternetReachable ?? true);
+
+        if (!isOnline) {
+          // Wait for connection to come back, then retry.
+          subscribeForReconnect();
+          return;
+        }
+
+        console.log("Refreshing the user profile");
+
+        const {
+          data: { session: initialSession },
+        } = await supabase.auth.getSession();
+
+        if (cancelled) return;
+
+        setSession(initialSession);
+
+        if (initialSession?.user) {
+          // Pass the userId so refresh doesn't depend on session state timing.
+          await refreshProfile(initialSession.user.id);
+        }
+
+        // Success: reset retry state + stop listening for reconnect.
+        attempts = 0;
+        clearRetry();
+        unsubscribeNetInfo?.();
+        unsubscribeNetInfo = null;
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error("Error initializing session:", error);
+
+        // If the error is network-ish, also listen for reconnect.
+        subscribeForReconnect();
+        scheduleRetry();
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void initializeUser();
+
+    return () => {
+      cancelled = true;
+      clearRetry();
+      unsubscribeNetInfo?.();
+      unsubscribeNetInfo = null;
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -38,12 +159,18 @@ export default function HomeScreen() {
                 </Text>
               )}
             </View>
-            <Text style={styles.greeting}>Hi, {profile?.full_name || "Guest"}!</Text>
+            <Text style={styles.greeting}>
+              {t("homeScreen.greeting")}, {profile?.full_name || t("homeScreen.guest")}!
+            </Text>
           </View>
-          <View style={styles.languageSelector}>
-            <Text style={styles.languageFlag}>🇺🇸</Text>
-            <Text style={styles.languageCode}>en</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.languageSelector}
+            activeOpacity={0.7}
+            onPress={() => setShowLanguageModal(true)}
+          >
+            <Text style={styles.languageFlag}>{getLanguageFlag()}</Text>
+            <Text style={styles.languageCode}>{language.toUpperCase()}</Text>
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -64,13 +191,13 @@ export default function HomeScreen() {
             >
               <View style={styles.cardContent}>
                 <View style={styles.cardLeft}>
-                  <Text style={styles.cardTitle}>Back to school</Text>
-                  <Text style={styles.cardSubtitle}>Sale 50% off</Text>
+                  <Text style={styles.cardTitle}>{t("homeScreen.backToSchool")}</Text>
+                  <Text style={styles.cardSubtitle}>{t("homeScreen.sale50Off")}</Text>
                   <TouchableOpacity 
                     style={styles.cardButton}
                     onPress={() => router.push("/paywall")}
                   >
-                    <Text style={styles.cardButtonText}>Get Now 50% off 🎁</Text>
+                    <Text style={styles.cardButtonText}>{t("homeScreen.getNow50Off")}</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.cardRight}>
@@ -79,7 +206,7 @@ export default function HomeScreen() {
                     style={styles.backpackImage}
                     contentFit="contain"
                   />
-                  <Text style={styles.watermark}>BACK TO SCHOOL</Text>
+                  <Text style={styles.watermark}>{t("homeScreen.backToSchoolWatermark")}</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -103,19 +230,19 @@ export default function HomeScreen() {
               <View style={styles.cardContent}>
                 <View style={styles.cardLeft}>
                   <View style={styles.titleRow}>
-                    <Text style={styles.cardTitleLarge}>Feynman AI</Text>
+                    <Text style={styles.cardTitleLarge}>{t("homeScreen.feynmanAI")}</Text>
                     <View style={styles.gradeBadge}>
                       <Text style={styles.gradeText}>A+</Text>
                     </View>
                   </View>
                   <Text style={styles.cardDescription}>
-                    to learn and memorize anything.
+                    {t("homeScreen.learnAndMemorize")}
                   </Text>
                   <TouchableOpacity 
                     style={styles.cardButton}
                     onPress={() => router.push("/start-learning")}
                   >
-                    <Text style={styles.cardButtonText}>Start Learning ✨</Text>
+                    <Text style={styles.cardButtonText}>{t("homeScreen.startLearning")}</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.cardRight}>
@@ -143,15 +270,15 @@ export default function HomeScreen() {
             >
               <View style={styles.cardContent}>
                 <View style={styles.cardLeft}>
-                  <Text style={styles.cardTitleLarge}>Create Notes</Text>
+                  <Text style={styles.cardTitleLarge}>{t("homeScreen.createNotes")}</Text>
                   <Text style={styles.cardDescription}>
-                    Create notes, quizzes, flashcards and more.
+                    {t("homeScreen.createNotesDescription")}
                   </Text>
                   <TouchableOpacity 
                     style={styles.cardButton}
                     onPress={() => router.push("/start-learning")}
                   >
-                    <Text style={styles.cardButtonText}>Create Notes 🎁</Text>
+                    <Text style={styles.cardButtonText}>{t("homeScreen.createNotesButton")}</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.cardRight}>
@@ -166,6 +293,18 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Language Selection Bottom Sheet */}
+      <BottomSheet
+        visible={showLanguageModal}
+        onClose={() => setShowLanguageModal(false)}
+        title={t("profile.changeLanguage")}
+      >
+        <LanguageSelectionContent
+          currentLanguage={language}
+          onLanguageSelect={handleLanguageChange}
+        />
+      </BottomSheet>
     </View>
   );
 }
@@ -262,12 +401,12 @@ const styles = StyleSheet.create({
     }),
   },
   cardGradient: {
-    padding: 20,
+    padding: 15,
   },
   cardContent: {
     flexDirection: "row",
+    minHeight: 120,
     justifyContent: "space-between",
-    height: 100,
   },
   cardLeft: {
     flex: 1,
@@ -305,7 +444,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.white,
     lineHeight: 20,
-    marginTop: 8,
+    marginTop: 1,
   },
   bold: {
     fontWeight: "700" as const,
@@ -316,7 +455,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 25,
     alignSelf: "flex-start",
-    marginTop: 12,
+    marginTop: 8,
   },
   cardButtonText: {
     color: Colors.text,

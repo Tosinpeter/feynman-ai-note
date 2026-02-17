@@ -116,5 +116,19 @@
     "delete": "Elimina",
     "close": "Chiudi",
     "confirm": "Conferma"
+  },
+  "homeScreen": {
+    "greeting": "Ciao",
+    "guest": "Ospite",
+    "backToSchool": "Ritorno a scuola",
+    "backToSchoolWatermark": "RITORNO A SCUOLA",
+    "sale50Off": "Sconto 50%",
+    "getNow50Off": "Ottieni ora 50% di sconto 🎁",
+    "feynmanAI": "Feynman AI",
+    "learnAndMemorize": "Per imparare e memorizzare qualsiasi cosa.",
+    "startLearning": "Inizia ad Imparare ✨",
+    "createNotes": "Crea Note",
+    "createNotesDescription": "Crea note, quiz, flashcard e altro ancora.",
+    "createNotesButton": "Crea Note 🎁"
   }
 }
