@@ -11,14 +11,17 @@ const { withGradleProperties } = require("@expo/config-plugins");
 function withDisableHermesBytecode(config) {
   return withGradleProperties(config, (config) => {
     const items = config.modResults;
-    const key = "react.hermesEnabled";
-    const existing = items.find(
-      (item) => item.type === "property" && item.key === key
-    );
-    if (existing) {
-      existing.value = "false";
-    } else {
-      items.push({ type: "property", key, value: "false" });
+    // React Native checks "hermesEnabled" first, then "react.hermesEnabled"
+    // Both must be false - hermesEnabled=true in Expo template overrides react.hermesEnabled
+    for (const key of ["hermesEnabled", "react.hermesEnabled"]) {
+      const existing = items.find(
+        (item) => item.type === "property" && item.key === key
+      );
+      if (existing) {
+        existing.value = "false";
+      } else {
+        items.push({ type: "property", key, value: "false" });
+      }
     }
     return config;
   });
